@@ -1,0 +1,32 @@
+# Event log processing
+pm4py
+
+# Data handling
+pandas
+numpy
+pyarrow          # fast parquet read/write
+
+# Time series
+statsmodels      # ACF/PACF, decomposition
+tsfresh          # automated time-series feature extraction
+
+# Machine learning
+scikit-learn
+xgboost
+lightgbm
+shap             # feature importance / explainability
+
+# Experiment tracking
+mlflow
+
+# Visualization
+matplotlib
+seaborn
+
+# Notebooks
+jupyter
+ipykernel
+
+# Testing
+pytest
+pytest-cov
