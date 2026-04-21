@@ -29,6 +29,15 @@ optional = true
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^4.5.1"
+poethepoet = "^0.44.0"
+
+[tool.poetry.group.docs]
+optional = true
+
+[tool.poetry.group.docs.dependencies]
+Sphinx = "^9.1.0"
+myst-parser = "^5.0.0"
+pydata-sphinx-theme = "^0.17.1"
 
 [tool.poetry.group.test]
 optional = true
@@ -37,6 +46,19 @@ optional = true
 pytest = ">=9.0.3,<10.0.0"
 pytest-cov = ">=7.1.0,<8.0.0"
 
+
+# define commandline tasks with poe
+[tool.poe.tasks]
+tests = "pytest tests"
+
+[tool.poe.tasks.docs-clean]
+cmd = "make.bat clean"
+
+[tool.poe.tasks.docs-build]
+cmd = "make.bat html"
+
+[tool.poe.tasks.docs]
+sequence = ["docs-clean", "docs-build"]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
@@ -48,6 +70,7 @@ target-version = "py312"
 line-length = 80
 fix = true
 
+[tool.ruff.lint]
 select = [
     "E",   # pycodestyle errors
     "F",   # pyflakes
