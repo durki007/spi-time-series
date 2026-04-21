@@ -1,0 +1,19 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": [],
+  "dictionaryDefinitions": [
+    {
+      "name": "project-words",
+      "path": "./cspell-words.txt",
+      "addWords": true
+    }
+  ],
+  "files": [],
+  "ignorePaths": [],
+  "dictionaries": [
+    "en_US"
+  ],
+  "allowCompoundWords": true,
+  "useGitignore": true
+}
