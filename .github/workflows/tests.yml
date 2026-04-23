@@ -32,6 +32,11 @@ jobs:
       - name: Install dependencies
         run: poetry install --with dev,test
 
+      - name: Set up Node.js for cspell
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - name: Run pre-commit
         run: poetry run pre-commit run --all-files
 
