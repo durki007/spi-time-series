@@ -1,0 +1,189 @@
+% This is samplepaper.tex, a sample chapter demonstrating the
+% LLNCS macro package for Springer Computer Science proceedings;
+% Version 2.21 of 2022/01/12
+%
+\documentclass[runningheads]{llncs}
+%
+\usepackage[T1]{fontenc}
+% T1 fonts will be used to generate the final print and online PDFs,
+% so please use T1 fonts in your manuscript whenever possible.
+% Other font encondings may result in incorrect characters.
+%
+\usepackage{graphicx}
+% Used for displaying a sample figure. If possible, figure files should
+% be included in EPS format.
+%
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{tabularx}
+% If you use the hyperref package, please uncomment the following two lines
+% to display URLs in blue roman font according to Springer's eBook style:
+\usepackage{color}
+\usepackage[colorlinks=true, linkcolor=black, citecolor=black, urlcolor=blue]{hyperref}
+\renewcommand\UrlFont{\color{blue}\rmfamily}
+\urlstyle{rm}
+%
+\begin{document}
+%
+\title{MSc Project 1: Time-Series-Enhanced Predictive Process Monitoring}
+\subtitle{Project Setup}
+%
+\titlerunning{Time-Series-Enhanced PPM: Project Setup \& RE}
+% If the paper title is too long for the running head, you can set
+% an abbreviated paper title here
+%
+\author{Michał Durkalec\and
+    Konstantinos Sakkas \and
+    Roman Ležovič}
+
+%
+\authorrunning{M. Durkalec et al.}
+% First names are abbreviated in the running head.
+% If there are more than two authors, 'et al.' is used.
+%
+\institute{Supervised Process Intelligence (SPI) Lab,\\
+    RWTH Aachen University, Aachen, Germany\\
+    \email{office@pads.rwth-aachen.de}}
+%
+\maketitle  % typeset the header of the contribution
+%
+\begin{abstract}
+    The primary objective of this project is to analyze a real-life loan application process using the BPI Challenge 2017 event log. We will construct a baseline model using only event-log-based features to predict case outcomes (e.g., whether a loan is accepted or cancelled), and later enhance it by incorporating time-series workload features. The ultimate goal is to determine whether enhancing a simple model with time-series data improves its predictive performance compared to a standard event-log baseline.
+
+    \keywords{Predictive Process Monitoring \and Time-Series Analysis \and Process Mining \and Supervised Machine Learning}
+\end{abstract}
+%
+%
+%
+\section{Introduction}
+
+\subsection{Project Topic \& Data Sources}
+
+In this project, our goal is to design, implement, and assess a time-series-enhanced predictive process monitoring pipeline. Initially, we will create a “classic” baseline model using solely event-log-based features, such as control-flow, temporal, and case attributes. Then, we will extend this model by incorporating time-series information that corresponds to case prefixes. We will systematically investigate whether this additional data improves predictive performance and adds value to the business. Finally, we will evaluate the model’s predictive performance.
+
+For our dataset, we will utilize the BPI Challenge 2017 event log, as published in \cite{bpic2017}. This event log pertains to the loan application process of a Dutch financial institution. The data encompasses all applications submitted through an online system in 2016, along with their subsequent events until February 1st, 2017, at 15:11. It provides real-world business relevance, a substantial number of cases and events, established use in predictive process monitoring, clear outcome labels, and ample opportunities for deriving time-series data.
+
+Our prediction task involves analyzing loan applications to determine their outcomes, such as acceptance, cancellation, or decline. Additionally, we consider the remaining time and the associated risk of a prolonged waiting period. To improve our baseline model, we will incorporate time series features like daily or hourly application arrivals, active loan applications, offer workload, resource workload, recent average waiting times, and rolling approval/cancellation rates.
+
+\section{Team Organization \& Skills}
+
+\subsection{Team Introductions \& Skill Matrix}
+Our project team is made up of three members: Michał, Konstantinos, and Roman.
+
+Michał is pursuing his master's degree in Software Systems Engineering after earning a bachelor's degree in Computer Engineering. He has hands-on experience in software development, cybersecurity, and risk management. Although this is his first course in process mining, he already possesses a strong foundation in machine learning, as his thesis centered around convolutional neural networks. Michał is very comfortable with Python, data science libraries like NumPy, pandas, and Matplotlib, deep learning frameworks such as PyTorch, and version control with Git.
+
+Konstantinos is a master's student in Data Science and brings strong statistical skills to the team, after completing his bachelor's degree in Statistics. He has completed courses in both process mining and machine learning and is confident in using process mining tools, key data science libraries, as well as creating visualization graphs. He is still building his experience with Git, but his knowledge of statistics makes him a great fit for data analysis and evaluating models.
+
+Roman is currently earning his master's in Computer Science and has been working with Python for ten years, including four years as a student worker and software engineer. He has taken courses in both process mining and machine learning, with most of his practical work focused on applying existing machine learning models rather than creating new ones. While he is brushing up on tools like PM4Py and scikit-learn, he is highly proficient with NumPy, pandas, and Git.
+
+Together, our diverse skills and experience make the team well-prepared for tackling the project's challenges.
+
+\autoref{tab:skills} provides a comprehensive overview of each member's competencies across relevant domains, using a three-point self-assessed scale (beginner, good, experienced). This matrix will help us allocate roles effectively and identify areas where additional study is needed. We will revisit this matrix during the first sprint retrospective.
+
+
+
+
+\begin{table}[H]
+    \caption{Team skill matrix.}\label{tab:skills}
+    \centering
+    \begin{tabular}{@{}lccc@{}}
+        \toprule
+        \textbf{Skill}                       & \textbf{Michał} & \textbf{Konstantinos} & \textbf{Roman} \\
+        \midrule
+        Python                               & Experienced     & Good                  & Experienced    \\
+        Process Mining                       & Beginner        & Experienced           & Good           \\
+        Data Engineering \& Preprocessing    & Experienced     & Experienced           & Beginner       \\
+        Modeling \& Evaluation               & Good            & Good                  & Good           \\
+        Software Engineering \& Testing      & Experienced     & Beginner              & Experienced    \\
+        Writing, Visualization \& Presenting & Good            & Good                  & Good           \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Initial Role Allocation}
+
+Roles are assigned based on the skill matrix and personal preferences shared during the initial team meeting. These roles are not fixed and will be reviewed during each sprint planning session. All assignments are documented in the repository \texttt{README.md}.
+
+\begin{table}
+    \caption{Initial role assignments.}\label{tab:roles}
+    \centering
+    \begin{tabular}{@{}ll@{}}
+        \toprule
+        \textbf{Role}                      & \textbf{Assigned To}                 \\
+        \midrule
+        Project Coordinator / Scrum Master & Michał                               \\
+        Technical Lead / Architecture      & Roman                                \\
+        Data \& Preprocessing Lead         & \textit{TBD}                         \\
+        Modelling \& Experimentation Lead  & \textit{TBD}                         \\
+        Evaluation \& Visualization Lead   & \textit{TBD}                         \\
+        Quality \& Tooling (Tests, CI)     & \textit{TBD}                         \\
+        Documentation \& Reporting         & Michał, Roman, Konstantinos (shared) \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Roles marked as \textit{TBD} will be assigned during the initial sprint planning session, once we begin working on the dataset and prediction task.
+
+\section{Technical Infrastructure \& Management}
+
+\subsection{Version Control Repository}
+
+The project uses a public GitHub repository (\url{https://github.com/durki007/spi-time-series}) with the following branching model:
+
+\begin{itemize}
+    \item \texttt{main}. It will contain only code that is completely finished, tested, and working flawlessly.
+    \item \texttt{dev}. The developed code will be stored here. After each member completes their code, it will be merged here before being pushed to the main branch.
+    \item \texttt{feature}. Whenever a member begins working on a specific task or has experimental code, a temporary branch will be created for that task.
+\end{itemize}
+
+\subsection{Activity Tracking Board}
+
+Trello (\url{https://trello.com/b/38Ak9jmW/spi-lab-group-5}) functions as the primary sprint board, organized into four columns: Backlog, In Progress, In Review, and Done. Each card represents a single or multiple requirements, accompanied by a category label, assignee, and due date.
+
+\subsection{Communication and Meetings}
+
+The meeting schedule for each week, along with our team’s meeting procedures, is presented in \autoref{tab:meetings}.
+
+\begin{table}[H]
+    \centering
+    \caption{Recurring meetings.}
+    \label{tab:meetings}
+    \begin{tabularx}{\textwidth}{llX}
+        \toprule
+        \textbf{Type}   & \textbf{When}   & \textbf{Purpose}                                                  \\
+        \midrule
+        Weekly stand-up & Tuesday, 12:00  & Reviewing progress, identifying obstacles, and assigning tasks.   \\ \addlinespace
+        Backup meeting  & Thursday, 18:00 & We can have a longer discussion if the Tuesday slot is not enough \\ \addlinespace
+        Sprint planning & Biweekly        & Goal definition, backlog refinement, and velocity tracking.       \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\section{Initial Retrospective}
+
+\subsection{Phase Review Outcomes}
+
+\textbf{What went well?}
+\begin{itemize}
+    \item High motivation and engagement across the team.
+    \item Two productive meetings successfully conducted.
+    \item Well-rounded expertise in software engineering and data science.
+    \item Communication channels working as intended.
+\end{itemize}
+\textbf{Areas for Improvement}
+\begin{itemize}
+    \item Scheduling is challenging due to the heavy lecture loads, making it difficult to find common meeting times.
+    \item Formal role assignments are temporarily suspended until the project scope is fully defined. Allocation plans will be discussed during the next meeting.
+\end{itemize}
+
+
+% ---- Bibliography ----
+\begin{thebibliography}{8}
+
+    \bibitem{bpic2017}
+    van Dongen, B.F.: BPI Challenge 2017. Eindhoven University of Technology (2017). \url{https://research.tue.nl/en/datasets/bpi-challenge-2017}
+
+
+
+\end{thebibliography}
+\end{document}
