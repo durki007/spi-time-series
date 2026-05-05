@@ -1,0 +1,371 @@
+% This is samplepaper.tex, a sample chapter demonstrating the
+% LLNCS macro package for Springer Computer Science proceedings;
+% Version 2.21 of 2022/01/12
+%
+\documentclass[runningheads]{llncs}
+%
+\usepackage[T1]{fontenc}
+% T1 fonts will be used to generate the final print and online PDFs,
+% so please use T1 fonts in your manuscript whenever possible.
+% Other font encondings may result in incorrect characters.
+%
+\usepackage{graphicx}
+% Used for displaying a sample figure. If possible, figure files should
+% be included in EPS format.
+%
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{tabularx}
+% If you use the hyperref package, please uncomment the following two lines
+% to display URLs in blue roman font according to Springer's eBook style:
+\usepackage{color}
+\usepackage[colorlinks=true, linkcolor=black, citecolor=black, urlcolor=blue]{hyperref}
+\renewcommand\UrlFont{\color{blue}\rmfamily}
+\urlstyle{rm}
+%
+\usepackage{soul}
+%
+\begin{document}
+%
+\title{MSc Project 1: Time-Series-Enhanced Predictive Process Monitoring}
+\subtitle{Requirements Engineering}
+%
+\titlerunning{Time-Series-Enhanced PPM: Requirement Engineering}
+% If the paper title is too long for the running head, you can set
+% an abbreviated paper title here
+%
+\author{Michał Durkalec \and
+    Konstantinos Sakkas \and
+    Roman Ležovič
+}
+%
+\authorrunning{M. Durkalec et al.}
+% First names are abbreviated in the running head.
+% If there are more than two authors, 'et al.' is used.
+%
+\institute{Supervised Process Intelligence (SPI) Lab,\\
+    RWTH Aachen University, Aachen, Germany\\
+    \email{office@pads.rwth-aachen.de}}
+%
+\maketitle  % typeset the header of the contribution
+%
+\begin{abstract}
+    This document outlines the requirements engineering phase for a time-series-enhanced predictive process monitoring pipeline. The primary objective of this project is to assess the impact of incorporating time series data on the predictive performance of the pipeline compared to a standard event-log-based model. The system is designed to predict the final outcome of a loan application and then estimate the remaining processing time for ongoing cases. To achieve this, we have identified and documented detailed functional and non-functional requirements, including data preprocessing, feature engineering, model training, evaluation, and system infrastructure.The document also identifies key stakeholders and technical constraints and creates a functional model with clear team responsibilities to meet the lab's evaluation criteria.
+
+    \keywords{Predictive Process Monitoring \and Requirements Engineering \and Time-Series Analysis \and Process Mining \and Feature Engineering}
+\end{abstract}
+%
+%
+%
+\section{Stakeholders and Constraints}
+
+\subsection{Main Stakeholders}
+To ensure the successful delivery of the time-series-enhanced predictive process monitoring pipeline, we have identified the following primary stakeholders:
+\begin{itemize}
+    \item \textbf{Course Instructors and Teaching Assistants:} Prof. Willibrordus Martinus Pancratius van der Aalst, Alessandro Berti, Nina Graves, and Viki Peeva. They define the success criteria and evaluate the project.
+    \item \textbf{Group 5:} Konstantinos, Roman and Michał. Responsible for the design, implementation, and testing of the pipeline.
+    \item \textbf{Process Owners:} Simulated stakeholders who represent the business users benefiting from the predictive pipeline.
+\end{itemize}
+
+\subsection{Project Constraints}
+The project’s design and implementation are constrained by several strict technical and organizational factors.
+\begin{itemize}
+    \item \textbf{Python, PM4Py, scikit-learn:} The pipeline must be implemented in Python, utilizing PM4Py for process integrations and scikit-learn for machine learning.
+    \item \textbf{Version Control:} The codebase must be publicly hosted and maintained on GitHub.
+    \item \textbf{Limited Computation:} The dataset \cite{bpic2017} contains 1.2 million events requiring memory-efficient implementations.
+    \item \textbf{Limited Time:} Development is strictly bound by the semester deadlines.
+\end{itemize}
+
+\section{Requirements Specification}
+
+\subsection{Data \& Preprocessing}
+\begin{itemize}
+    \item \textbf{ID:} REQ-DP-01
+    \item \textbf{Type:} Functional
+    \item \textbf{Text:} The system shall be able to import and parse event logs in the XES (eXtensible Event Stream) format into an internal data structure suitable for downstream process mining and machine learning tasks.
+
+          %  Preprocess: handle missing data and resampling
+          \vspace{1em}
+    \item \textbf{ID:} REQ-DP-02
+    \item \textbf{Type:} Functional
+    \item \textbf{Text:} The system shall preprocess event log and time-series data by:
+          \begin{itemize}
+              \item Detecting and handling missing values using configurable strategies (e.g., imputation, forward-fill, removal).
+              \item Resampling time-series data to a uniform temporal resolution based on a configurable interval.
+              \item Preserving event ordering and timestamp consistency during preprocessing.
+          \end{itemize}
+
+          %  Feature extraction
+          \vspace{1em}
+    \item \textbf{ID:} REQ-DP-03
+    \item \textbf{Type:} Functional
+    \item \textbf{Text:} The system shall construct case prefixes from event logs by:
+          \begin{itemize}
+              \item Generating prefix sequences for each case up to a configurable maximum length.
+              \item Supporting prefix generation strategies (e.g. growing prefix, fixed-length sliding window).
+              \item Preserving temporal order and associated event attributes.
+          \end{itemize}
+
+          \vspace{1em}
+    \item \textbf{ID:} REQ-DP-04
+    \item \textbf{Type:} Functional
+    \item \textbf{Text:} The system shall extract features from event logs, specifically:
+          \begin{itemize}
+              \item Extract control-flow features (e.g., activity sequences, n-grams, directly-follows relations)
+              \item Extract temporal features (e.g., inter-event times, case durations, waiting times)
+              \item Allow users to configure:
+                    \begin{itemize}
+                        \item The selection of feature types used for downstream ML tasks
+                        \item Parameters of the selected features (e.g., n for n-grams, aggregation methods)
+                    \end{itemize}
+          \end{itemize}
+
+          % Time series extraction
+          \vspace{1em}
+    \item \textbf{ID:} REQ-DP-05
+    \item \textbf{Type:} Functional
+    \item \textbf{Text:} The system shall extract features from time-series data, specifically:
+          \begin{itemize}
+              \item Apply sliding-window techniques with configurable window size and step to segment the data.
+              \item Compute statistical features for each window, including mean, variance, minimum, maximum, and trend (e.g., linear slope).
+              \item Align extracted time-series features with event-based data using timestamps.
+          \end{itemize}
+
+          % Time series extraction
+          \vspace{1em}
+    \item \textbf{ID:} REQ-DP-06
+    \item \textbf{Type:} Functional
+    \item \textbf{Text:} The system shall align event log–derived features and time-series features, specifically:
+          \begin{itemize}
+              \item Synchronize features using timestamps as the primary alignment key.
+              \item Ensure that each aligned feature vector corresponds to a single case prefix or case instance.
+              \item Handle temporal mismatches and missing alignments using configurable strategies, including interpolation, truncation, or padding.
+          \end{itemize}
+
+\end{itemize}
+
+\subsection{Modelling \& Evaluation}
+\begin{itemize}
+    \item \textbf{ID:} REQ-ME-01
+    \item \textbf{Type:} Functional
+    \item \textbf{Text:} The system shall implement at least one predictive process monitoring task based on event log data, from the following list:
+          \begin{itemize}
+              \item Outcome prediction (classification of process instance results).
+              \item Remaining time prediction (regression of time until case completion).
+          \end{itemize}
+
+          \vspace{1em}
+    \item \textbf{ID:} REQ-ME-02
+    \item \textbf{Type:} Functional
+    \item \textbf{Text:} For each prediction task, the system shall train baseline models using only event log data. Specifically:
+          \begin{itemize}
+              \item Use only event log data and derived case prefixes as input features.
+              \item Explicitly exclude all time-series-derived features.
+              \item Produce predictions as defined in REQ-ME-01.
+          \end{itemize}
+
+          \vspace{1em}
+    \item \textbf{ID:} REQ-ME-03
+    \item \textbf{Type:} Functional
+    \item \textbf{Text:} For each prediction task defined in REQ-ME-01, the system shall extend the baseline models defined in REQ-ME-02 by incorporating time-series data. Specifically:
+          \begin{itemize}
+              \item The extended models shall use all features defined in REQ-ME-02 (event-log data and derived case prefixes).
+              \item The extended models shall additionally include time-series–derived features (e.g., sliding-window statistics and sensor measurements).
+              \item Time-series features shall be aligned with event log prefixes using consistent temporal references.
+              \item The extended models shall produce predictions according to the same task definition as their corresponding baseline model.
+          \end{itemize}
+
+          % \vspace{1em}
+          % \item \textbf{ID:} REQ-ME-04
+          % \item \textbf{Type:} Functional
+          % \item \textbf{Text:} The system shall compare, for each prediction task, at least two models:
+          %     \begin{itemize}
+          %         \item A baseline model using only event-log–derived features
+          %         \item An enhanced model using both event-log and time-series–derived features
+          %     \end{itemize}
+
+          \vspace{1em}
+    \item \textbf{ID:} REQ-ME-04
+    \item \textbf{Type:} Functional
+    \item \textbf{Text:} The system shall evaluate predictive models using suitable metrics, including at least the following:
+          \begin{itemize}
+              \item For classification tasks the provided metrics should include at least accuracy and AUC.
+              \item For regression tasks the provided metrics should include at least MAE and RMSE.
+          \end{itemize}
+          Evaluation metrics shall be computed on a held-out test set consistent across all compared models.
+
+          \vspace{1em}
+    \item \textbf{ID:} REQ-ME-05
+    \item \textbf{Type:} Functional
+    \item \textbf{Text:} The system shall use time-based data splitting strategies (e.g., chronological split or rolling-origin evaluation) for training, validation, and testing in order to preserve temporal ordering and prevent information leakage.
+
+          \vspace{1em}
+    \item \textbf{ID:} REQ-ME-06
+    \item \textbf{Type:} Functional
+    \item \textbf{Text:} The predictive models shall be implemented using scikit-learn-compatible pipeline structures. Specifically:
+          \begin{itemize}
+              \item Each model shall be encapsulated in a pipeline that supports sequential processing steps (e.g., preprocessing, feature extraction, and prediction).
+              \item Each pipeline shall implement a standard scikit-learn interface, including \texttt{fit} and \texttt{predict} methods.
+              \item Hyperparameters shall be optimized using a systematic validation strategy such as grid search or random search.
+          \end{itemize}
+\end{itemize}
+
+\subsection{Infrastructure \& Tooling}
+\begin{itemize}
+    \item \textbf{ID:} REQ-IT-01
+    \item \textbf{Type:} Non-Functional
+    \item \textbf{Text:} Experiments shall be strictly reproducible by utilizing fixed random seeds and centralized configuration files. Experiments with identical configuration and dataset shall produce identical results.
+
+          \vspace{1em}
+    \item \textbf{ID:} REQ-IT-02
+    \item \textbf{Type:} Non-Functional
+    \item \textbf{Text:} The code base shall be modular, with separate components for data processing, feature engineering, model training, and evaluation.
+
+          \vspace{1em}
+    \item \textbf{ID:} REQ-IT-03
+    \item \textbf{Type:} Non-Functional
+    \item \textbf{Text:} Automated tests shall be provided and executable via a single command (e.g., pytest). The tests shall cover core components including log loading, case prefix generation, and feature extraction using a synthetic dataset.
+
+          \vspace{1em}
+    \item \textbf{ID:} REQ-IT-04
+    \item \textbf{Type:} Non-Functional
+    \item \textbf{Text:} All system dependencies shall be explicitly documented using a dependency management system to ensure reproducibility and enable execution of the full pipeline.
+
+          \vspace{1em}
+    \item \textbf{ID:} REQ-IT-05
+    \item \textbf{Type:} Non-Functional
+    \item \textbf{Text:} The system shall be extensible such that new feature types, models, or evaluation metrics can be integrated without modifying existing components.
+
+          \vspace{1em}
+    \item \textbf{ID:} REQ-IT-06
+    \item \textbf{Type:} Non-Functional
+    \item \textbf{Text:} All non-trivial functions and classes must contain descriptive docstrings.
+
+\end{itemize}
+
+\subsection{Reporting \& Explainability}
+\begin{itemize}
+    \item \textbf{ID:} REQ-RE-01
+    \item \textbf{Type:} Functional
+    \item \textbf{Text:} The system shall produce a comparative evaluation of baseline and extended models for each prediction task, including:
+          \begin{itemize}
+              \item Performance differences across all evaluation metrics defined in REQ-ME-04.
+              \item Performance as a function of prefix length.
+          \end{itemize}
+
+          \vspace{1em}
+    \item \textbf{ID:} REQ-RE-02
+    \item \textbf{Type:} Functional
+    \item \textbf{Text:} The system shall compute and visualize feature importance scores for each trained model, comparing the relative contribution of log-based features versus time-series features to predictive performance.
+
+\end{itemize}
+
+\subsection{Documentation}
+\begin{itemize}
+    \item \textbf{ID:} REQ-DOC-01
+    \item \textbf{Type:} Non-Functional
+    \item \textbf{Text:} The repository shall include a README containing installation instructions, dataset placement instructions, and a guide to running the full pipeline end-to-end.
+
+          \vspace{1em}
+    \item \textbf{ID:} REQ-DOC-02
+    \item \textbf{Type:} Non-Functional
+    \item \textbf{Text:} The project shall include a short technical document (3--5 pages) describing the system architecture, data flow from raw inputs to predictions, and the main design choices (encodings, models, hyperparameters). A simple architecture diagram should be included.
+
+          \vspace{1em}
+    \item \textbf{ID:} REQ-DOC-03
+    \item \textbf{Type:} Non-Functional
+    \item \textbf{Text:} The final report (10--15 pages, excluding references and appendices) shall cover:
+          \begin{itemize}
+              \item Data preprocessing and feature engineering choices
+              \item Model specification and evaluation protocol
+              \item A critical discussion of the added value of time-series features, including potential reasons for success or failure, computational overhead, and generalizability of findings
+          \end{itemize}
+
+          \vspace{1em}
+    \item \textbf{ID:} REQ-DOC-04
+    \item \textbf{Type:} Non-Functional
+    \item \textbf{Text:} The report shall include a comparative analysis of baseline and enhanced models, supported by at least qualitative significance assessment (e.g. confidence intervals, boxplots across runs, or a careful discussion of observed differences).
+\end{itemize}
+
+
+\section{Allocation and Flow-Down}
+
+
+\subsection{High-Level Goals}
+
+The primary objective is to evaluate whether incorporating external time-series data improves predictive process monitoring over a standard event-log baseline. To achieve this, the pipeline will predict loan application outcomes and estimate remaining processing times for ongoing cases
+
+\subsection{The Functional Model}
+The system is structured as a five-stage pipeline. Each stage is defined by its inputs and outputs, and the implementation details are captured in the requirements specification. However, the exact internal data representations between stages are not yet defined and will be determined during implementation.
+
+\begin{description}
+    \item[F1: Data ingestion] \hfill \\
+          \textit{Input:} Raw event log (XES), raw time-series sources. \\
+          \textit{Output:} Cleaned event log, preprocessed time-series data. Both split into test/train set.
+
+    \item[F2: Feature Engineering] \hfill \\
+          \textit{Input:} Cleaned event log, preprocessed time-series data. \\
+          \textit{Output:} Labelled feature vectors per case prefix (log-based and time-series features).
+
+    \item[F3: Model Training] \hfill \\
+          \textit{Input:} Labelled feature vectors (training and validation sets). \\
+          \textit{Output:} Trained baseline and extended models with tuned hyperparameters.
+
+    \item[F4: Evaluation] \hfill \\
+          \textit{Input:} Trained models, held-out test set. \\
+          \textit{Output:} Evaluation metrics per model and prefix length.
+
+    \item[F5: Reporting] \hfill \\
+          \textit{Input:} Evaluation metrics, trained models. \\
+          \textit{Output:} Comparative visualizations, feature importance plots, final report.
+\end{description}
+
+\subsection{Module Allocation}
+
+Table~\ref{tab:module-allocation} maps each system module to the requirements it satisfies and the responsible team member.
+
+\begin{table}[h]
+    \centering
+    \begin{tabularx}{\textwidth}{llX}
+        \toprule
+        \textbf{Module}         & \textbf{Owner} & \textbf{Requirements}  \\
+        \midrule
+        \texttt{preprocessing/} & Roman          & REQ-DP-01, REQ-DP-02   \\
+        \texttt{features/}      & Konstantinos   & REQ-DP-03, REQ-DP-04   \\
+        \texttt{features/}      & Michał         & REQ-DP-05, REQ-DP-06   \\
+        \texttt{models/}        & Konstantinos   & REQ-ME-01, REQ-ME-02   \\
+        \texttt{models/}        & Roman          & REQ-ME-03, REQ-ME-06   \\
+        \texttt{evaluation/}    & Michał         & REQ-ME-04, REQ-ME-05   \\
+        \texttt{evaluation/}    & Konstantinos   & REQ-RE-01, REQ-RE-02   \\
+        \texttt{tests/}         & Roman          & REQ-IT-03              \\
+        \texttt{config/}        & Roman          & REQ-IT-01              \\
+        \texttt{docs/}          & Michał         & REQ-DOC-01, REQ-DOC-02 \\
+        \bottomrule
+    \end{tabularx}
+    \caption{Module allocation and ownership.}
+    \label{tab:module-allocation}
+\end{table}
+
+\noindent Non-functional requirements REQ-IT-02, REQ-IT-05 and REQ-IT-06 apply across all modules and are the shared responsibility of the entire team. The final report (REQ-DOC-03, REQ-DOC-04) is likewise a shared deliverable.
+
+\subsection{Requirements Management}
+
+% The requirements specified in this document are intended to remain stable throughout the project. Changes to high-level requirements are only expected in exceptional circumstances, such as a fundamental change in the prediction task or dataset, and will be explicitly documented.
+
+% As work progresses, the team will naturally identify more detailed sub-requirements. Rather than updating this document, these will be tracked as GitHub issues linked to the relevant high-level requirement. This keeps the specification focused and stable while giving the team flexibility to refine implementation details as the project evolves.
+
+
+% \hl{Alternative/Simplifies}
+
+The requirements specified in this document will remain stable. Changes to high-level requirements will only occur in exceptional circumstances (e.g., a fundamental shift in the prediction task) and will be explicitly documented. Detailed sub-requirements identified during development will be tracked as GitHub issues linked to their parent requirement, rather than requiring updates to this document.
+
+% ---- Bibliography ----
+\begin{thebibliography}{8}
+
+    \bibitem{bpic2017}
+    van Dongen, B.F.: BPI Challenge 2017. Eindhoven University of Technology (2017). \url{https://research.tue.nl/en/datasets/bpi-challenge-2017}
+
+
+
+\end{thebibliography}
+\end{document}
