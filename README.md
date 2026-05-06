@@ -47,6 +47,24 @@ poetry run pre-commit install
 
 After this, ruff (lint + format), mypy, and cspell run automatically on every `git commit`. If any check fails the commit is blocked until the issue is fixed.
 
+### VS Code setup
+
+Install the following extensions:
+
+| Extension | ID | Purpose |
+|---|---|---|
+| Python | `ms-python.python` | Python language support and Poetry env management |
+| Ruff | `charliermarsh.ruff` | Linting and formatting (replaces flake8, isort, black) |
+| Mypy Type Checker | `ms-python.mypy-type-checker` | Inline type error reporting |
+
+The project ships a [.vscode/settings.json](.vscode/settings.json) that configures everything automatically once the extensions are installed:
+
+- **Formatter** — Ruff runs on save and fixes all auto-fixable lint issues
+- **Import sorting** — Ruff organises imports on save
+- **Type checking** — Mypy runs in daemon mode (`dmypy`) for fast feedback; Pylance's built-in checker is disabled to avoid duplicate errors
+
+No manual configuration is needed beyond installing the extensions.
+
 ### Running checks manually
 
 Run all checks across the entire codebase (mirrors what CI does):
