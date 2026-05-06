@@ -25,7 +25,6 @@ dependencies = [
     "jupyter (>=1.1.1,<2.0.0)",
     "r4pm (>=0.5.5,<0.6.0)",
     "polars (>=1.40.1,<2.0.0)",
-    "pytest (>=9.0.3,<10.0.0)",
 ]
 
 [tool.poetry.group.dev]
