@@ -1,6 +1,10 @@
 import logging
 
-from spi_time_series.data.schemas import EvaluationReport, FeatureSet, ModelArtifact
+from spi_time_series.data.schemas import (
+    EvaluationReport,
+    FeatureSet,
+    ModelArtifact,
+)
 
 logger = logging.getLogger(__name__)
 

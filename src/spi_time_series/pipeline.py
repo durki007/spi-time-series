@@ -3,9 +3,7 @@ from pathlib import Path
 
 from spi_time_series.data.schemas import (
     EvaluationReport,
-    FeatureSet,
     ModelArtifact,
-    PreprocessedData,
     RawData,
 )
 from spi_time_series.evaluation import evaluate

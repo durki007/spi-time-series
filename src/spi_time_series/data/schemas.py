@@ -5,9 +5,9 @@ from dataclasses import dataclass
 import pandas as pd
 from sklearn.pipeline import Pipeline as SklearnPipeline
 
-EventLog = pd.DataFrame
-FeatureMatrix = pd.DataFrame
-LabelSeries = pd.Series
+type EventLog = pd.DataFrame
+type FeatureMatrix = pd.DataFrame
+type LabelSeries = pd.Series
 
 
 @dataclass(frozen=True)
