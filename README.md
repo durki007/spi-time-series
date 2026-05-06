@@ -14,3 +14,49 @@ outcome prediction, remaining time prediction, risk of SLA violation, prediction
 times, prediction of resource overload). Emphasis is placed on sound preprocessing and
 synchronization between event data and time series, modular and testable software design, and
 rigorous empirical evaluation following best practices in supervised process mining.
+
+## Development
+
+### Prerequisites
+
+- Python 3.12+
+- [Poetry](https://python-poetry.org/docs/#installation)
+- Node.js 22+ (required by the cspell spell-checker hook)
+
+### Setup
+
+**1. Install dependencies**
+
+```bash
+poetry install --with dev,test
+```
+
+This installs all runtime, development (`pre-commit`, linters), and test (`pytest`, `pytest-cov`) dependencies into a single virtual environment.
+
+> **Note for Jupyter notebooks:** Poetry may create the virtual environment outside the project directory (e.g. in a global cache). In that case notebooks cannot auto-detect the kernel. To force Poetry to create the environment inside the project, run:
+> ```bash
+> poetry config virtualenvs.in-project true
+> ```
+> Then re-run `poetry install`. The environment will be created at `.venv/` in the project root and Jupyter/VS Code will pick it up automatically.
+
+**2. Install the git hook**
+
+```bash
+poetry run pre-commit install
+```
+
+After this, ruff (lint + format), mypy, and cspell run automatically on every `git commit`. If any check fails the commit is blocked until the issue is fixed.
+
+### Running checks manually
+
+Run all checks across the entire codebase (mirrors what CI does):
+
+```bash
+poetry run pre-commit run --all-files
+```
+
+Run only the test suite:
+
+```bash
+poetry run pytest
+```
