@@ -14,7 +14,23 @@ _DEFAULT_DATA_DIR = Path(__file__).parents[3] / "data" / "raw"
 
 
 class Dataset:
+    """BPI Challenge 2017 event log, loaded as a pandas DataFrame.
+
+    Downloads the dataset from 4TU.ResearchData on first use and caches it
+    locally as an XES file. Subsequent instantiations read from the cache.
+
+    Attributes:
+        data_dir: Directory where the raw XES file is stored.
+        log: Event log as a DataFrame with one row per event.
+    """
+
     def __init__(self, data_dir: Path | None = None):
+        """Load the dataset, downloading it first if not already cached.
+
+        Args:
+            data_dir: Directory to store / read the raw data file.
+                Defaults to ``<repo_root>/data/raw``.
+        """
         self.data_dir = Path(data_dir) if data_dir else _DEFAULT_DATA_DIR
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.log: pd.DataFrame = self._load()
