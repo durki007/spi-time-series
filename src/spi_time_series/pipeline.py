@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 
+from spi_time_series.data import Dataset
 from spi_time_series.data.schemas import (
     EvaluationReport,
     ModelArtifact,
@@ -16,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 def ingest(data_dir: Path | None = None) -> RawData:
     """Load raw XES event log from disk, downloading if necessary."""
-    from spi_time_series.data import Dataset
 
     logger.info("Ingesting data...")
     raw = RawData(event_log=Dataset(data_dir).log)
