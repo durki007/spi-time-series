@@ -50,7 +50,8 @@ Thumbs.db
 desktop.ini
 
 # IDEs
-.vscode/
+.vscode/*
+!.vscode/extensions.json
 .idea/
 *.sublime-project
 *.sublime-workspace
