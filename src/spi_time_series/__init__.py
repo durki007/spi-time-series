@@ -1,3 +1,3 @@
-from spi_time_series.pipeline import run
+from spi_time_series.pipeline import Pipeline, PipelineBuilder
 
-__all__ = ["run"]
+__all__ = ["Pipeline", "PipelineBuilder"]

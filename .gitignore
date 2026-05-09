@@ -65,3 +65,6 @@ coverage.xml
 # mypy / type checking
 .mypy_cache/
 .dmypy.json
+
+# claude settings
+.claude/settings.local.json
