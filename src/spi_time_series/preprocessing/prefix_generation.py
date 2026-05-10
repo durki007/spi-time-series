@@ -39,12 +39,12 @@ def sliding_window_factory(
     """
 
     def sliding_window(trace: list[dict]):
-        for end_idx in range(len(trace)):
+        for end_idx in range(len(trace) + 1):
             start_idx = max(end_idx - max_length, 0)
 
             if end_idx - start_idx < min_length:
                 continue
-
+            print(start_idx, end_idx)
             yield trace[start_idx:end_idx]
 
     return sliding_window
