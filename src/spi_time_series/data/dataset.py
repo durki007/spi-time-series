@@ -46,6 +46,9 @@ class Dataset:
             logger.info("Dataset found at %s.", self._xes_path())
         logger.info("Reading XES log...")
         df = pm4py.read_xes(str(self._xes_path()))
+        if not isinstance(df, pd.DataFrame):
+            df = pm4py.convert_to_dataframe(df)
+
         logger.info("Done. Loaded %d events.", len(df))
         return df
 
