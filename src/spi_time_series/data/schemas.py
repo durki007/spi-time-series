@@ -1,4 +1,6 @@
+from collections.abc import Iterator
 from dataclasses import dataclass
+from typing import Protocol
 
 import pandas as pd
 from sklearn.pipeline import Pipeline as SklearnPipeline
@@ -16,15 +18,20 @@ class RawData:
 
 
 @dataclass(frozen=True)
+class PrefixSample:
+    case_id: str
+    prefix: EventLog
+    target: float | str
+
+
+@dataclass(frozen=True)
 class PreprocessedData:
     """Cleaned event log split into train and test case sets."""
 
-    train_log: EventLog
-    test_log: EventLog
-    case_id_col: str
+    train_log: Iterator[PrefixSample]
+    test_log: Iterator[PrefixSample]
     activity_col: str
     timestamp_col: str
-    target_col: str
 
 
 @dataclass(frozen=True)
@@ -54,3 +61,13 @@ class EvaluationReport:
     metrics: dict[str, dict[int, dict[str, float]]]
     model_names: list[str]
     prefix_lengths: list[int]
+
+
+class WindowGenerator(Protocol):
+    def __call__(self, trace: pd.DataFrame) -> Iterator[pd.DataFrame]: ...
+
+
+class TargetGenerator(Protocol):
+    def __call__(
+        self, trace: pd.DataFrame, prefix: pd.DataFrame
+    ) -> float | str: ...
