@@ -1,0 +1,138 @@
+import pandas as pd
+import pytest
+
+from spi_time_series.preprocessing.preprocess import (
+    PrefixSample,
+    RawData,
+    _build_prefixes,
+    build_traces,
+    preprocess,
+    sliding_window_factory,
+)
+
+# ----------------------------
+# Fixtures
+# ----------------------------
+
+
+@pytest.fixture
+def sample_log():
+    return pd.DataFrame(
+        [
+            {
+                "case:concept:name": "A",
+                "time:timestamp": 1,
+                "concept:name": "x",
+            },
+            {
+                "case:concept:name": "A",
+                "time:timestamp": 2,
+                "concept:name": "y",
+            },
+            {
+                "case:concept:name": "B",
+                "time:timestamp": 1,
+                "concept:name": "z",
+            },
+        ]
+    )
+
+
+@pytest.fixture
+def raw(sample_log):
+    return RawData(event_log=sample_log)
+
+
+# ----------------------------
+# Tests: build_traces
+# ----------------------------
+
+
+def test_build_traces_orders_and_groups(sample_log):
+    traces = list(build_traces(sample_log))
+
+    assert len(traces) == 2
+
+    case_ids = {t[0] for t in traces}
+    assert case_ids == {"A", "B"}
+
+    trace_a = next(df for cid, df in traces if cid == "A")
+    assert trace_a["concept:name"].tolist() == ["x", "y"]
+
+
+# ----------------------------
+# Tests: sliding window
+# ----------------------------
+
+
+def test_sliding_window_factory_basic():
+    df = pd.DataFrame(
+        {
+            "concept:name": ["a", "b", "c"],
+        }
+    )
+
+    window = sliding_window_factory(min_length=1, max_length=2)
+
+    result = [w for w in window(df)]
+
+    # expected windows:
+    # [a], [a,b], [b,c]
+    assert len(result) == 3
+
+
+def test_sliding_window_min_length():
+    df = pd.DataFrame({"x": [1, 2, 3, 4]})
+
+    window = sliding_window_factory(min_length=2, max_length=None)
+
+    result = list(window(df))
+
+    # only windows length >= 2
+    assert all(len(w) >= 2 for w in result)
+
+
+# ----------------------------
+# Tests: _build_prefixes
+# ----------------------------
+
+
+def test_build_prefixes_generates_samples(sample_log):
+    def target_fn(trace, prefix):
+        return len(prefix)
+
+    window = sliding_window_factory(min_length=1, max_length=2)
+
+    samples = list(_build_prefixes(sample_log, window, target_fn))
+
+    assert all(isinstance(s, PrefixSample) for s in samples)
+    assert all(isinstance(s.target, int) for s in samples)
+
+    # check case preservation
+    assert {s.case_id for s in samples} == {"A", "B"}
+
+
+# ----------------------------
+# Tests: preprocess integration
+# ----------------------------
+
+
+def test_preprocess_pipeline(raw):
+    def target_fn(trace, prefix):
+        return prefix["concept:name"].iloc[-1]
+
+    result = preprocess(raw, target_fn)
+
+    train = list(result.train_log)
+    test = list(result.test_log)
+
+    assert len(train) > 0
+    assert len(test) > 0
+
+    # structure checks
+    assert isinstance(train[0], PrefixSample)
+    assert isinstance(test[0], PrefixSample)
+
+    # columns preserved
+    assert result.activity_col == "concept:name"
+    assert result.timestamp_col == "time:timestamp"
