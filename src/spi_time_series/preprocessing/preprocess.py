@@ -2,6 +2,7 @@ import logging
 from collections.abc import Iterator
 
 import pandas as pd
+import pm4py
 
 from spi_time_series.data.schemas import (
     PrefixSample,
@@ -14,24 +15,61 @@ from spi_time_series.data.schemas import (
 logger = logging.getLogger(__name__)
 
 
-# TODO implement
 def clean_data(raw: RawData) -> RawData:
     """
     Clean Data:
         - remove incomplete traces
         - other cleaning operations
     """
+    df = raw.event_log.copy()
 
-    return raw
+    df = pm4py.format_dataframe(
+        df,
+        case_id="case:concept:name",
+        activity_key="concept:name",
+        timestamp_key="time:timestamp",
+    )
+
+    valid_end_activities = [
+        "W_Validate application",
+        "W_Call after offers",
+        "W_Call incomplete files",
+        "O_Cancelled",
+        "A_Denied",
+    ]
+    logger.info(f"Filtering to terminal states: {valid_end_activities}")
+    df = pm4py.filter_end_activities(df, valid_end_activities)
+
+    df = df.sort_values(by=["case:concept:name", "time:timestamp"])
+    logger.info(f"Remaining events: {len(df)}")
+    return RawData(event_log=df)
 
 
-# TODO implement
 def split_data(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Split event log into train and test set.
+    """
+    Split event log into train and test sets using a strict temporal cutoff.
+
+    To prevent data leakage, the split is based on the timestamps of events rather than random sampling.
 
     Returns (train_df, test_df)
     """
-    return df, df.copy()
+    cutoff_time = df["time:timestamp"].quantile(0.8)
+    logger.info(f"Splitting data at cutoff time: {cutoff_time}")
+
+    case_ends = df.groupby("case:concept:name")["time:timestamp"].max()
+    case_starts = df.groupby("case:concept:name")["time:timestamp"].min()
+
+    train_ids = case_ends[case_ends < cutoff_time].index
+    test_ids = case_starts[case_starts >= cutoff_time].index
+
+    train_df = df[df["case:concept:name"].isin(train_ids)]
+    test_df = df[df["case:concept:name"].isin(test_ids)]
+
+    logger.info(
+        f"Split successful. \nTrain: {len(train_ids)} cases, \nTest: {len(test_ids)} cases."
+    )
+
+    return train_df, test_df
 
 
 def build_traces(df: pd.DataFrame) -> Iterator[tuple[str, pd.DataFrame]]:
