@@ -88,9 +88,10 @@ def split_data(
 
     Returns (train_df, test_df)
     """
-    # Determine the cutoff time based on the specified quantile of event timestamps.
-    cutoff_time = df["time:timestamp"].quantile(split_quantile)
-    logger.info(f"Splitting data at cutoff time: {cutoff_time}")
+    # Determine the cutoff time based on the specified quantile of case start times.
+    case_starts = df.groupby("case:concept:name")["time:timestamp"].min()
+    cutoff_time = case_starts.quantile(split_quantile)
+    logger.info(f"Splitting cases at cutoff time: {cutoff_time}")
 
     # Compute the start and end times for each case to determine their relation to the cutoff.
     case_ends = df.groupby("case:concept:name")["time:timestamp"].max()

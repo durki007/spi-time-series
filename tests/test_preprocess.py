@@ -1,7 +1,6 @@
 import pandas as pd
 import pytest
 
-# Corrected imports: Pull schemas from their actual location
 from spi_time_series.data.schemas import PrefixSample, RawData
 from spi_time_series.preprocessing.preprocess import (
     _build_prefixes,
@@ -165,8 +164,6 @@ def test_preprocess_pipeline(raw):
     train = list(result.train_log)
     test = list(result.test_log)
 
-    # Because we expanded the fixture and spaced the dates out,
-    # we guarantee both train and test sets have data.
     assert len(train) > 0
     assert len(test) > 0
 
