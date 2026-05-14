@@ -2,6 +2,7 @@ import logging
 from collections.abc import Iterator
 
 import pandas as pd
+import pm4py
 
 from spi_time_series.data.schemas import (
     PrefixSample,
@@ -14,24 +15,101 @@ from spi_time_series.data.schemas import (
 logger = logging.getLogger(__name__)
 
 
-# TODO implement
-def clean_data(raw: RawData) -> RawData:
+def clean_event_log(
+    df: pd.DataFrame,
+    valid_end_activities: list[str] | None = None,
+    top_k_variants: int | None = None,
+) -> pd.DataFrame:
     """
-    Clean Data:
-        - remove incomplete traces
-        - other cleaning operations
+    Clean the event log dataframe by:
+    - Formatting it for PM4Py processing.
+    - Optionally filtering to the top K variants.
+    - Optionally filtering for valid end activities.
+    - Sorting events by case ID and timestamp.
     """
+    #
+    # Ensure the dataframe has the necessary columns and is in the correct format for PM4Py.
+    df = pm4py.format_dataframe(
+        df,
+        case_id="case:concept:name",
+        activity_key="concept:name",
+        timestamp_key="time:timestamp",
+    )
 
-    return raw
+    # Optionally filter to the top K variants to focus on the most common process paths.
+    if top_k_variants:
+        logger.info(f"Filtering to top {top_k_variants} variants.")
+        df = pm4py.filter_variants_top_k(df, k=top_k_variants)
+
+    # Optionally filter for valid end activities to ensure only complete cases are retained.
+    if valid_end_activities:
+        logger.info(
+            f"Filtering for valid end activities: {valid_end_activities}"
+        )
+        df = pm4py.filter_end_activities(df, valid_end_activities)
+
+    df = df.sort_values(by=["case:concept:name", "time:timestamp"])
+    logger.info(f"Remaining events after cleaning: {len(df)}")
+
+    return df
 
 
-# TODO implement
-def split_data(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Split event log into train and test set.
+def clean_data(
+    raw: RawData,
+    valid_ends: list[str] | None = None,
+    top_k_variants: int | None = None,
+) -> RawData:
+    """
+    Clean the raw event log data by applying the clean_event_log function.
+    Args:
+        raw:
+            Raw event log input.
+
+        valid_ends:
+            Optional list of valid end activities to filter the event log.
+             If None, no filtering based on end activities is applied.
+    """
+    cleaned_log = clean_event_log(
+        raw.event_log,
+        valid_end_activities=valid_ends,
+        top_k_variants=top_k_variants,
+    )
+    return RawData(event_log=cleaned_log)
+
+
+def split_data(
+    df: pd.DataFrame, split_quantile: float = 0.8
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Split event log into train and test sets using a strict temporal cutoff.
+
+    To prevent data leakage, the split is based on the timestamps of events.
+    Cases that overlap the split boundary are discarded to ensure strict separation.
 
     Returns (train_df, test_df)
     """
-    return df, df.copy()
+    # Determine the cutoff time based on the specified quantile of case start times.
+    case_starts = df.groupby("case:concept:name")["time:timestamp"].min()
+    cutoff_time = case_starts.quantile(split_quantile)
+    logger.info(f"Splitting cases at cutoff time: {cutoff_time}")
+
+    # Compute the start and end times for each case to determine their relation to the cutoff.
+    case_ends = df.groupby("case:concept:name")["time:timestamp"].max()
+    case_starts = df.groupby("case:concept:name")["time:timestamp"].min()
+
+    # Assign cases to train or test based on their start and end times relative to the cutoff.
+    train_ids = case_ends[case_ends < cutoff_time].index
+    test_ids = case_starts[case_starts >= cutoff_time].index
+
+    # Discard cases that overlap the cutoff to prevent data leakage
+    train_df = df[df["case:concept:name"].isin(train_ids)]
+    test_df = df[df["case:concept:name"].isin(test_ids)]
+
+    logger.info(
+        f"Split successful. \nTrain: {len(train_ids)} cases, \nTest: {len(test_ids)} cases."
+    )
+
+    return train_df, test_df
 
 
 def build_traces(df: pd.DataFrame) -> Iterator[tuple[str, pd.DataFrame]]:
@@ -129,9 +207,9 @@ def preprocess(
     generates prefix samples with associated targets for both splits.
 
     Steps:
-        1. Clean raw event log
-        2. Split into train and test sets
-        3. Generate prefix samples with targets
+        1. Clean the raw event log data to ensure quality and consistency.
+        2. Split the cleaned event log into training and testing sets based on a temporal cutoff.
+        3. Generate prefix samples for both training and testing sets using the provided window generator and target generator.
 
     Args:
         raw:
@@ -152,9 +230,11 @@ def preprocess(
     cleaned_data = clean_data(raw)
     train_df, test_df = split_data(cleaned_data.event_log)
 
+    # Use a default sliding window generator if none is provided.
     if prefix_generator is None:
         prefix_generator = sliding_window_factory()
 
+    # Build prefix samples for both training and testing sets.
     preprocessed_data = PreprocessedData(
         train_log=_build_prefixes(train_df, prefix_generator, target_generator),
         test_log=_build_prefixes(test_df, prefix_generator, target_generator),
