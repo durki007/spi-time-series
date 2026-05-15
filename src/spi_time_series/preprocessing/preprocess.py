@@ -65,7 +65,7 @@ def sliding_window_factory(
     """
     Create a sliding window generator for trace prefixes.
 
-    The generated function yields temporally ordered subtraces
+    The generated function yields temporally ordered indice of subtraces
     constrained by the provided minimum and maximum lengths.
 
     Args:
@@ -76,7 +76,7 @@ def sliding_window_factory(
             Maximum number of events allowed in a window. Set to None for no maximum length.
 
     Returns:
-        A callable that generates trace windows from a trace dataframe.
+        A callable that generates trace windows from a trace numpy array.
     """
 
     def sliding_window(trace: np.ndarray) -> Iterator[pd.DataFrame]:
@@ -100,14 +100,9 @@ def _build_trace_samples(
     window_generator: WindowGenerator,
 ) -> Iterator[TraceSample]:
     """
-    Generate prefix samples from an event log.
-
-    Iterates over traces, applies a window generator to create prefixes,
-    and computes a target value for each prefix.
-
+    Generate trace samples from an event log.
     Yields:
-        PrefixSample:
-            Case ID, prefix dataframe, and associated target value.
+        TraceSample
     """
     for case_id, trace in build_traces(df):
         data = trace.to_numpy()
@@ -134,9 +129,6 @@ def preprocess(
     Args:
         raw:
             Raw event log input.
-
-        target_generator:
-            Function used to compute target values for each prefix.
 
         prefix_generator:
             Optional window generator for creating prefixes.
