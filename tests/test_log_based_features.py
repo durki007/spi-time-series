@@ -28,6 +28,25 @@ def feature_extractor():
     return BasicControlFlowFeatures()
 
 
+@pytest.fixture
+def feature_extractor_onehot():
+    return BasicControlFlowFeatures(
+        one_hot_encode_categorical=True,
+    )
+
+
+@pytest.fixture
+def sample_prefix():
+    return np.array(
+        [
+            ["A", pd.Timestamp("2024-01-01 10:00:00")],
+            ["B", pd.Timestamp("2024-01-01 10:05:00")],
+            ["C", pd.Timestamp("2024-01-01 10:10:00")],
+        ],
+        dtype=object,
+    )
+
+
 def make_prefix(events, timestamps):
     """
     Helper to create numpy prefix arrays.
@@ -308,3 +327,51 @@ def test_custom_column_mapping():
 
     assert result["last_activity"] == "B"
     assert result["last_transition"] == "A->B"
+
+
+# =========================================================
+# ONE HOT ENCODING
+# =========================================================
+
+
+def test_one_hot_last_activity(
+    feature_extractor_onehot, sample_prefix, col_idx_mapping
+):
+    result = feature_extractor_onehot(sample_prefix, col_idx_mapping)
+
+    cols = [c for c in result.index if c.startswith("last_activity__")]
+    assert len(cols) > 0
+
+    # Only "C" should be active
+    for col in cols:
+        if col.endswith("__C"):
+            assert result[col] == 1
+        else:
+            assert result[col] == 0
+
+
+def test_one_hot_last_transition(
+    feature_extractor_onehot, sample_prefix, col_idx_mapping
+):
+    result = feature_extractor_onehot(sample_prefix, col_idx_mapping)
+
+    cols = [c for c in result.index if c.startswith("last_transition__")]
+    assert len(cols) > 0
+
+    # expected transition is B->C
+    for col in cols:
+        if col.endswith("__B->C"):
+            assert result[col] == 1
+        else:
+            assert result[col] == 0
+
+
+def test_one_hot_is_binary(
+    feature_extractor_onehot, sample_prefix, col_idx_mapping
+):
+    result = feature_extractor_onehot(sample_prefix, col_idx_mapping)
+
+    ohe_cols = [c for c in result.index if "__" in c]
+
+    for c in ohe_cols:
+        assert result[c] in (0, 1)
