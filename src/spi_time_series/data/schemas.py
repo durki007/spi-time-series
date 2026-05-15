@@ -73,3 +73,11 @@ class TargetGenerator(Protocol):
     def __call__(
         self, trace: np.ndarray, start_idx: int, end_idx: int
     ) -> float | str: ...
+
+
+class PrefixFeature(Protocol):
+    def __call__(
+        self, prefix: np.ndarray, col_idx_mapping: dict[str, int]
+    ) -> pd.Series: ...
+
+    def name(self) -> str: ...
