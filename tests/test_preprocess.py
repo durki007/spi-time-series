@@ -1,9 +1,9 @@
 import pandas as pd
 import pytest
 
-from spi_time_series.data.schemas import PrefixSample, RawData
+from spi_time_series.data.schemas import RawData, TraceSample
 from spi_time_series.preprocessing.preprocess import (
-    _build_prefixes,
+    _build_trace_samples,
     build_traces,
     preprocess,
     sliding_window_factory,
@@ -131,20 +131,16 @@ def test_sliding_window_min_length():
 
 
 # ----------------------------
-# Tests: _build_prefixes
+# Tests: _build_trace_samples
 # ----------------------------
 
 
-def test_build_prefixes_generates_samples(sample_log):
-    def target_fn(trace, prefix):
-        return len(prefix)
-
+def test_build_trace_samples_generates_samples(sample_log):
     window = sliding_window_factory(min_length=1, max_length=2)
 
-    samples = list(_build_prefixes(sample_log, window, target_fn))
+    samples = list(_build_trace_samples(sample_log, window))
 
-    assert all(isinstance(s, PrefixSample) for s in samples)
-    assert all(isinstance(s.target, int) for s in samples)
+    assert all(isinstance(s, TraceSample) for s in samples)
 
     # check case preservation across all 5 cases
     assert {s.case_id for s in samples} == {"A", "B", "C", "D", "E"}
@@ -156,10 +152,7 @@ def test_build_prefixes_generates_samples(sample_log):
 
 
 def test_preprocess_pipeline(raw):
-    def target_fn(trace, prefix):
-        return prefix["concept:name"].iloc[-1]
-
-    result = preprocess(raw, target_fn)
+    result = preprocess(raw)
 
     train = list(result.train_log)
     test = list(result.test_log)
@@ -168,9 +161,5 @@ def test_preprocess_pipeline(raw):
     assert len(test) > 0
 
     # structure checks
-    assert isinstance(train[0], PrefixSample)
-    assert isinstance(test[0], PrefixSample)
-
-    # columns preserved
-    assert result.activity_col == "concept:name"
-    assert result.timestamp_col == "time:timestamp"
+    assert isinstance(train[0], TraceSample)
+    assert isinstance(test[0], TraceSample)

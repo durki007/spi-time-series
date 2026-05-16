@@ -2,6 +2,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Protocol
 
+import numpy as np
 import pandas as pd
 from sklearn.pipeline import Pipeline as SklearnPipeline
 
@@ -18,20 +19,21 @@ class RawData:
 
 
 @dataclass(frozen=True)
-class PrefixSample:
+class TraceSample:
     case_id: str
-    prefix: EventLog
-    target: float | str
+    data: np.ndarray
+    prefix_indexes: Iterator[tuple[int, int]]
 
 
 @dataclass(frozen=True)
 class PreprocessedData:
     """Cleaned event log split into train and test case sets."""
 
-    train_log: Iterator[PrefixSample]
-    test_log: Iterator[PrefixSample]
-    activity_col: str
-    timestamp_col: str
+    train_log: Iterator[TraceSample]
+    num_train_cases: int
+    test_log: Iterator[TraceSample]
+    num_test_cases: int
+    col_idx: dict[str, int]  # mapping from column name to its index
 
 
 @dataclass(frozen=True)
@@ -64,10 +66,18 @@ class EvaluationReport:
 
 
 class WindowGenerator(Protocol):
-    def __call__(self, trace: pd.DataFrame) -> Iterator[pd.DataFrame]: ...
+    def __call__(self, trace: np.ndarray) -> Iterator[tuple[int, int]]: ...
 
 
 class TargetGenerator(Protocol):
     def __call__(
-        self, trace: pd.DataFrame, prefix: pd.DataFrame
+        self, trace: np.ndarray, start_idx: int, end_idx: int
     ) -> float | str: ...
+
+
+class PrefixFeature(Protocol):
+    def __call__(
+        self, prefix: np.ndarray, col_idx_mapping: dict[str, int]
+    ) -> pd.Series: ...
+
+    def name(self) -> str: ...

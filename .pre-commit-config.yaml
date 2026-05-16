@@ -29,5 +29,5 @@ repos:
     rev: v10.0.0
     hooks:
       - id: cspell
-        args: ["--config", ".pre-commit-data/cspell.json"]
+        args: ["--config", ".pre-commit-data/cspell.json", "--no-progress"]
         files: ^(src/|tests/|docs/)

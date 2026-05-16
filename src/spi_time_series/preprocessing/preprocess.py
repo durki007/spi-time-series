@@ -1,14 +1,14 @@
 import logging
 from collections.abc import Iterator
 
+import numpy as np
 import pandas as pd
 import pm4py
 
 from spi_time_series.data.schemas import (
-    PrefixSample,
     PreprocessedData,
     RawData,
-    TargetGenerator,
+    TraceSample,
     WindowGenerator,
 )
 
@@ -143,7 +143,7 @@ def sliding_window_factory(
     """
     Create a sliding window generator for trace prefixes.
 
-    The generated function yields temporally ordered subtraces
+    The generated function yields temporally ordered indice of subtraces
     constrained by the provided minimum and maximum lengths.
 
     Args:
@@ -154,11 +154,11 @@ def sliding_window_factory(
             Maximum number of events allowed in a window. Set to None for no maximum length.
 
     Returns:
-        A callable that generates trace windows from a trace dataframe.
+        A callable that generates trace windows from a trace numpy array.
     """
 
-    def sliding_window(trace: pd.DataFrame) -> Iterator[pd.DataFrame]:
-        n_events = len(trace)
+    def sliding_window(trace: np.ndarray) -> Iterator[pd.DataFrame]:
+        n_events = trace.shape[0]
 
         for end_idx in range(1, n_events + 1):
             start_idx = (
@@ -168,36 +168,29 @@ def sliding_window_factory(
             if end_idx - start_idx < min_length:
                 continue
 
-            yield trace.iloc[start_idx:end_idx]
+            yield start_idx, end_idx
 
     return sliding_window
 
 
-def _build_prefixes(
+def _build_trace_samples(
     df: pd.DataFrame,
     window_generator: WindowGenerator,
-    target_generator: TargetGenerator,
-) -> Iterator[PrefixSample]:
+) -> Iterator[TraceSample]:
     """
-    Generate prefix samples from an event log.
-
-    Iterates over traces, applies a window generator to create prefixes,
-    and computes a target value for each prefix.
-
+    Generate trace samples from an event log.
     Yields:
-        PrefixSample:
-            Case ID, prefix dataframe, and associated target value.
+        TraceSample
     """
     for case_id, trace in build_traces(df):
-        for prefix in window_generator(trace):
-            target = target_generator(trace, prefix)
-
-            yield PrefixSample(case_id=case_id, prefix=prefix, target=target)
+        data = trace.to_numpy()
+        yield TraceSample(
+            case_id=case_id, data=data, prefix_indexes=window_generator(data)
+        )
 
 
 def preprocess(
     raw: RawData,
-    target_generator: TargetGenerator,
     prefix_generator: WindowGenerator | None = None,
 ) -> PreprocessedData:
     """
@@ -215,9 +208,6 @@ def preprocess(
         raw:
             Raw event log input.
 
-        target_generator:
-            Function used to compute target values for each prefix.
-
         prefix_generator:
             Optional window generator for creating prefixes.
             If None, a default sliding window strategy is used.
@@ -230,16 +220,19 @@ def preprocess(
     cleaned_data = clean_data(raw)
     train_df, test_df = split_data(cleaned_data.event_log)
 
+    col_idx = {c: i for i, c in enumerate(train_df.columns)}
+
     # Use a default sliding window generator if none is provided.
     if prefix_generator is None:
         prefix_generator = sliding_window_factory()
 
     # Build prefix samples for both training and testing sets.
     preprocessed_data = PreprocessedData(
-        train_log=_build_prefixes(train_df, prefix_generator, target_generator),
-        test_log=_build_prefixes(test_df, prefix_generator, target_generator),
-        activity_col="concept:name",
-        timestamp_col="time:timestamp",
+        train_log=_build_trace_samples(train_df, prefix_generator),
+        num_train_cases=len(train_df["case:concept:name"].unique()),
+        test_log=_build_trace_samples(test_df, prefix_generator),
+        num_test_cases=len(test_df["case:concept:name"].unique()),
+        col_idx=col_idx,
     )
 
     return preprocessed_data
