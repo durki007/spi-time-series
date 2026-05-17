@@ -73,6 +73,7 @@ def test_xes_file_extracted_after_download(tmp_path, mock_pm4py, mock_requests):
     assert (tmp_path / _XES_FILENAME).exists()
 
 
+@pytest.mark.skip(reason="Dataset URL is currently unreliable.")
 @pytest.mark.integration
 def test_dataset_url_is_reachable():
     response = requests.head(_DOWNLOAD_URL, allow_redirects=True, timeout=10)
