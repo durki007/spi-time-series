@@ -5,6 +5,7 @@ from sklearn.base import BaseEstimator
 from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline as SklearnPipeline
+from sklearn.preprocessing import StandardScaler
 
 from spi_time_series.data.schemas import FeatureSet, ModelArtifact
 
@@ -12,12 +13,17 @@ logger = logging.getLogger(__name__)
 
 
 def _build_numeric_preprocessor() -> ColumnTransformer:
-    """Select all numeric columns, impute with median, drop string columns."""
+    """Select all numeric columns, impute with median, scale, drop string columns."""
     return ColumnTransformer(
         [
             (
                 "num",
-                SimpleImputer(strategy="median"),
+                SklearnPipeline(
+                    [
+                        ("imputer", SimpleImputer(strategy="median")),
+                        ("scaler", StandardScaler()),
+                    ]
+                ),
                 make_column_selector(dtype_include=np.number),
             )
         ],
