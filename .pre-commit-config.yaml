@@ -21,6 +21,7 @@ repos:
         additional_dependencies:
           - types-pyyaml
           - types-requests
+          - pydantic
 
   # -------------------------
   # CSpell (spell checking)
