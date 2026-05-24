@@ -15,66 +15,40 @@ from spi_time_series.data.schemas import (
 logger = logging.getLogger(__name__)
 
 
-def clean_event_log(
-    df: pd.DataFrame,
-    valid_end_activities: list[str] | None = None,
-    top_k_variants: int | None = None,
-) -> pd.DataFrame:
-    """
-    Clean the event log dataframe by:
-    - Formatting it for PM4Py processing.
-    - Optionally filtering to the top K variants.
-    - Optionally filtering for valid end activities.
-    - Sorting events by case ID and timestamp.
-    """
-    #
-    # Ensure the dataframe has the necessary columns and is in the correct format for PM4Py.
-    df = pm4py.format_dataframe(
-        df,
-        case_id="case:concept:name",
-        activity_key="concept:name",
-        timestamp_key="time:timestamp",
-    )
-
-    # Optionally filter to the top K variants to focus on the most common process paths.
-    if top_k_variants:
-        logger.info(f"Filtering to top {top_k_variants} variants.")
-        df = pm4py.filter_variants_top_k(df, k=top_k_variants)
-
-    # Optionally filter for valid end activities to ensure only complete cases are retained.
-    if valid_end_activities:
-        logger.info(
-            f"Filtering for valid end activities: {valid_end_activities}"
-        )
-        df = pm4py.filter_end_activities(df, valid_end_activities)
-
-    df = df.sort_values(by=["case:concept:name", "time:timestamp"])
-    logger.info(f"Remaining events after cleaning: {len(df)}")
-
-    return df
-
-
 def clean_data(
     raw: RawData,
     valid_ends: list[str] | None = None,
     top_k_variants: int | None = None,
 ) -> RawData:
     """
-    Clean the raw event log data by applying the clean_event_log function.
-    Args:
-        raw:
-            Raw event log input.
+    Clean the raw event log data by formatting it for PM4Py,
+    optionally filtering to the top-K variants and valid end activities,
+    and sorting by case ID and timestamp.
 
-        valid_ends:
-            Optional list of valid end activities to filter the event log.
-             If None, no filtering based on end activities is applied.
+    Args:
+        raw: Raw event log input.
+        valid_ends: Optional list of valid end activities to filter the event log.
+        top_k_variants: Optional number of top variants to keep.
     """
-    cleaned_log = clean_event_log(
+    df = pm4py.format_dataframe(
         raw.event_log,
-        valid_end_activities=valid_ends,
-        top_k_variants=top_k_variants,
+        case_id="case:concept:name",
+        activity_key="concept:name",
+        timestamp_key="time:timestamp",
     )
-    return RawData(event_log=cleaned_log)
+
+    if top_k_variants:
+        logger.info("Filtering to top %s variants.", top_k_variants)
+        df = pm4py.filter_variants_top_k(df, k=top_k_variants)
+
+    if valid_ends:
+        logger.info("Filtering for valid end activities: %s", valid_ends)
+        df = pm4py.filter_end_activities(df, valid_ends)
+
+    df = df.sort_values(by=["case:concept:name", "time:timestamp"])
+    logger.info("Remaining events after cleaning: %d", len(df))
+
+    return RawData(event_log=df)
 
 
 def split_data(
@@ -88,25 +62,23 @@ def split_data(
 
     Returns (train_df, test_df)
     """
-    # Determine the cutoff time based on the specified quantile of case start times.
     case_starts = df.groupby("case:concept:name")["time:timestamp"].min()
     cutoff_time = case_starts.quantile(split_quantile)
-    logger.info(f"Splitting cases at cutoff time: {cutoff_time}")
+    logger.info("Splitting cases at cutoff time: %s", cutoff_time)
 
-    # Compute the start and end times for each case to determine their relation to the cutoff.
     case_ends = df.groupby("case:concept:name")["time:timestamp"].max()
     case_starts = df.groupby("case:concept:name")["time:timestamp"].min()
 
-    # Assign cases to train or test based on their start and end times relative to the cutoff.
     train_ids = case_ends[case_ends < cutoff_time].index
     test_ids = case_starts[case_starts >= cutoff_time].index
 
-    # Discard cases that overlap the cutoff to prevent data leakage
     train_df = df[df["case:concept:name"].isin(train_ids)]
     test_df = df[df["case:concept:name"].isin(test_ids)]
 
     logger.info(
-        f"Split successful. \nTrain: {len(train_ids)} cases, \nTest: {len(test_ids)} cases."
+        "Split successful. \nTrain: %d cases, \nTest: %d cases.",
+        len(train_ids),
+        len(test_ids),
     )
 
     return train_df, test_df
@@ -189,50 +161,148 @@ def _build_trace_samples(
         )
 
 
+def clean_time_series(
+    df: pd.DataFrame, id_col: str = "series_id", time_col: str = "timestamp"
+) -> pd.DataFrame:
+    """
+    Prepare a time series dataframe for processing.
+
+    Ensures the timestamp column is datetime-like, sorts by `id_col` and
+    `time_col`, and returns the cleaned frame.
+    """
+    if time_col not in df.columns:
+        raise KeyError(f"Timestamp column '{time_col}' not found in dataframe")
+
+    df = df.copy()
+    df[time_col] = pd.to_datetime(df[time_col], utc=True)
+
+    if id_col not in df.columns:
+        df[id_col] = "_global"
+
+    df = df.sort_values([id_col, time_col])
+    logger.info("Prepared time series with %d rows.", len(df))
+    return df
+
+
+def split_time_series(
+    df: pd.DataFrame,
+    id_col: str = "series_id",
+    time_col: str = "timestamp",
+    split_quantile: float = 0.8,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Split multiple time series (grouped by `id_col`) into train and test
+    sets using a temporal cutoff computed from series start times.
+
+    Returns (train_df, test_df) containing only the series assigned to each
+    split (no overlapping series across splits).
+    """
+    starts = df.groupby(id_col)[time_col].min()
+    cutoff = starts.quantile(split_quantile)
+    logger.info("Time-series split cutoff: %s", cutoff)
+
+    ends = df.groupby(id_col)[time_col].max()
+
+    train_ids = ends[ends < cutoff].index
+    test_ids = starts[starts >= cutoff].index
+
+    train_df = df[df[id_col].isin(train_ids)]
+    test_df = df[df[id_col].isin(test_ids)]
+
+    logger.info(
+        "Split time series: %d train series, %d test series.",
+        len(train_ids),
+        len(test_ids),
+    )
+    return train_df, test_df
+
+
+def _build_series_samples(
+    df: pd.DataFrame,
+    window_generator: WindowGenerator,
+    id_col: str,
+    time_col: str,
+) -> Iterator[TraceSample]:
+    """
+    Generate TraceSample objects for each series in a time-series dataframe.
+    """
+    df = df.sort_values([id_col, time_col])
+    for sid, series in df.groupby(id_col, sort=False):
+        data = series.to_numpy()
+        yield TraceSample(
+            case_id=sid, data=data, prefix_indexes=window_generator(data)
+        )
+
+
 def preprocess(
-    raw: RawData,
+    raw: RawData | pd.DataFrame,
     prefix_generator: WindowGenerator | None = None,
+    *,
+    mode: str = "log",
+    id_col: str = "series_id",
+    time_col: str = "timestamp",
+    valid_end_activities: list[str] | None = None,
+    top_k_variants: int | None = None,
 ) -> PreprocessedData:
     """
-    End-to-end preprocessing pipeline for event logs.
-
-    Cleans raw event data, splits it into train and test sets, and
-    generates prefix samples with associated targets for both splits.
-
-    Steps:
-        1. Clean the raw event log data to ensure quality and consistency.
-        2. Split the cleaned event log into training and testing sets based on a temporal cutoff.
-        3. Generate prefix samples for both training and testing sets using the provided window generator and target generator.
+    End-to-end preprocessing for event logs or time series.
 
     Args:
         raw:
-            Raw event log input.
-
+            For `mode="log"`, pass RawData. For `mode="time_series"`, pass a
+            pandas DataFrame with `id_col` and `time_col`.
         prefix_generator:
             Optional window generator for creating prefixes.
-            If None, a default sliding window strategy is used.
-
-    Returns:
-        PreprocessedData:
-            Structured dataset containing train and test prefix streams
-            ready for feature extraction or modeling.
+        mode:
+            "log" (default) or "time_series".
+        id_col:
+            Series identifier column (time-series mode only).
+        time_col:
+            Timestamp column (time-series mode only).
+        valid_end_activities:
+            Optional list of valid end activities to filter the event log.
+        top_k_variants:
+            Optionally filter to the top K variants.
     """
-    cleaned_data = clean_data(raw)
-    train_df, test_df = split_data(cleaned_data.event_log)
-
-    col_idx = {c: i for i, c in enumerate(train_df.columns)}
-
-    # Use a default sliding window generator if none is provided.
     if prefix_generator is None:
         prefix_generator = sliding_window_factory()
 
-    # Build prefix samples for both training and testing sets.
-    preprocessed_data = PreprocessedData(
-        train_log=_build_trace_samples(train_df, prefix_generator),
-        num_train_cases=len(train_df["case:concept:name"].unique()),
-        test_log=_build_trace_samples(test_df, prefix_generator),
-        num_test_cases=len(test_df["case:concept:name"].unique()),
-        col_idx=col_idx,
-    )
+    if mode == "log":
+        if not isinstance(raw, RawData):
+            raise TypeError("mode='log' expects RawData")
+        cleaned = clean_data(
+            raw,
+            valid_ends=valid_end_activities,
+            top_k_variants=top_k_variants,
+        )
+        train_df, test_df = split_data(cleaned.event_log)
+        col_idx = {c: i for i, c in enumerate(train_df.columns)}
+        return PreprocessedData(
+            train_log=_build_trace_samples(train_df, prefix_generator),
+            num_train_cases=len(train_df["case:concept:name"].unique()),
+            test_log=_build_trace_samples(test_df, prefix_generator),
+            num_test_cases=len(test_df["case:concept:name"].unique()),
+            col_idx=col_idx,
+        )
 
-    return preprocessed_data
+    if mode == "time_series":
+        if not isinstance(raw, pd.DataFrame):
+            raise TypeError("mode='time_series' expects a pandas DataFrame")
+        cleaned = clean_time_series(raw, id_col=id_col, time_col=time_col)
+        train_df, test_df = split_time_series(
+            cleaned, id_col=id_col, time_col=time_col
+        )
+        col_idx = {c: i for i, c in enumerate(train_df.columns)}
+        return PreprocessedData(
+            train_log=_build_series_samples(
+                train_df, prefix_generator, id_col=id_col, time_col=time_col
+            ),
+            num_train_cases=len(train_df[id_col].unique()),
+            test_log=_build_series_samples(
+                test_df, prefix_generator, id_col=id_col, time_col=time_col
+            ),
+            num_test_cases=len(test_df[id_col].unique()),
+            col_idx=col_idx,
+        )
+
+    raise ValueError("mode must be 'log' or 'time_series'")
