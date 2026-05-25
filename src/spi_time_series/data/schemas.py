@@ -1,4 +1,4 @@
-from collections.abc import Iterator
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -22,16 +22,16 @@ class RawData:
 class TraceSample:
     case_id: str
     data: np.ndarray
-    prefix_indexes: Iterator[tuple[int, int]]
+    prefix_indexes: Iterable[tuple[int, int]]
 
 
 @dataclass(frozen=True)
 class PreprocessedData:
     """Cleaned event log split into train and test case sets."""
 
-    train_log: Iterator[TraceSample]
+    train_log: Iterable[TraceSample]
     num_train_cases: int
-    test_log: Iterator[TraceSample]
+    test_log: Iterable[TraceSample]
     num_test_cases: int
     col_idx: dict[str, int]  # mapping from column name to its index
 
@@ -66,7 +66,7 @@ class EvaluationReport:
 
 
 class WindowGenerator(Protocol):
-    def __call__(self, trace: np.ndarray) -> Iterator[tuple[int, int]]: ...
+    def __call__(self, trace: np.ndarray) -> Iterable[tuple[int, int]]: ...
 
 
 class TargetGenerator(Protocol):
@@ -80,4 +80,11 @@ class PrefixFeature(Protocol):
         self, prefix: np.ndarray, col_idx_mapping: dict[str, int]
     ) -> pd.Series: ...
 
+    def fit(
+        self, traces: Iterable[TraceSample], col_idx_mapping: dict[str, int]
+    ): ...
+
     def name(self) -> str: ...
+
+    @property
+    def feature_names(self) -> list[str]: ...

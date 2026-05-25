@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Iterator
+from collections.abc import Iterable
 
 import numpy as np
 import pandas as pd
@@ -112,30 +112,6 @@ def split_data(
     return train_df, test_df
 
 
-def build_traces(df: pd.DataFrame) -> Iterator[tuple[str, pd.DataFrame]]:
-    """
-    Yield temporally ordered event traces grouped by case ID.
-
-    Args:
-        data:
-            Raw event log container with a pandas event log dataframe.
-
-    Yields:
-        tuple[str, pd.DataFrame]:
-            A tuple containing:
-
-            - The case identifier.
-            - A dataframe representing the ordered trace for that case.
-
-            The yielded trace dataframe preserves the original event
-            columns and has a reset zero-based index.
-    """
-    df = df.sort_values(["case:concept:name", "time:timestamp"])
-
-    for case_id, trace in df.groupby("case:concept:name", sort=False):
-        yield case_id, trace.reset_index(drop=True)
-
-
 def sliding_window_factory(
     min_length: int = 1,
     max_length: int | None = None,
@@ -157,9 +133,9 @@ def sliding_window_factory(
         A callable that generates trace windows from a trace numpy array.
     """
 
-    def sliding_window(trace: np.ndarray) -> Iterator[pd.DataFrame]:
+    def sliding_window(trace: np.ndarray) -> Iterable[tuple[int, int]]:
         n_events = trace.shape[0]
-
+        indice = []
         for end_idx in range(1, n_events + 1):
             start_idx = (
                 0 if max_length is None else max(end_idx - max_length, 0)
@@ -168,7 +144,9 @@ def sliding_window_factory(
             if end_idx - start_idx < min_length:
                 continue
 
-            yield start_idx, end_idx
+            indice.append((start_idx, end_idx))
+
+        return indice
 
     return sliding_window
 
@@ -176,17 +154,23 @@ def sliding_window_factory(
 def _build_trace_samples(
     df: pd.DataFrame,
     window_generator: WindowGenerator,
-) -> Iterator[TraceSample]:
+) -> Iterable[TraceSample]:
     """
     Generate trace samples from an event log.
     Yields:
         TraceSample
     """
-    for case_id, trace in build_traces(df):
+    traces = []
+    for case_id, trace in df.groupby("case:concept:name", sort=False):
         data = trace.to_numpy()
-        yield TraceSample(
-            case_id=case_id, data=data, prefix_indexes=window_generator(data)
+        traces.append(
+            TraceSample(
+                case_id=case_id,
+                data=data,
+                prefix_indexes=window_generator(data),
+            )
         )
+    return traces
 
 
 def preprocess(
