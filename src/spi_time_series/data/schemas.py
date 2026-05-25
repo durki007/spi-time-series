@@ -34,6 +34,7 @@ class PreprocessedData:
     test_log: Iterator[TraceSample]
     num_test_cases: int
     col_idx: dict[str, int]  # mapping from column name to its index
+    time_series: pd.DataFrame
 
 
 @dataclass(frozen=True)
