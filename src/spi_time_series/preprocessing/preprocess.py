@@ -54,27 +54,51 @@ def clean_event_log(
     return df
 
 
-def clean_data(
-    raw: RawData,
-    valid_ends: list[str] | None = None,
-    top_k_variants: int | None = None,
-) -> RawData:
+def preprocess_time_series(event_log_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Clean the raw event log data by applying the clean_event_log function.
-    Args:
-        raw:
-            Raw event log input.
+    Build a continuous hourly timestamp grid for a time-series event log.
 
-        valid_ends:
-            Optional list of valid end activities to filter the event log.
-             If None, no filtering based on end activities is applied.
+    The grid spans the full log from the minimum start time to the maximum
+    end time and uses a 1-hour frequency. The returned frame includes
+    active case counts for each timestamp.
     """
-    cleaned_log = clean_event_log(
-        raw.event_log,
-        valid_end_activities=valid_ends,
-        top_k_variants=top_k_variants,
+    required_columns = {"case_id", "start_time", "end_time"}
+    missing_columns = required_columns.difference(event_log_df.columns)
+    if missing_columns:
+        missing = ", ".join(sorted(missing_columns))
+        raise KeyError(f"Missing required columns: {missing}")
+
+    if event_log_df.empty:
+        return pd.DataFrame(
+            {
+                "timestamp": pd.DatetimeIndex([], name="timestamp"),
+                "active_cases": pd.Series(dtype="int64"),
+            }
+        )
+
+    start_times = pd.to_datetime(event_log_df["start_time"])
+    end_times = pd.to_datetime(event_log_df["end_time"])
+
+    min_start_time = start_times.min()
+    max_end_time = end_times.max()
+
+    timestamp_grid = pd.date_range(
+        start=min_start_time, end=max_end_time, freq="1h"
     )
-    return RawData(event_log=cleaned_log)
+
+    time_series = pd.DataFrame({"timestamp": timestamp_grid}).set_index(
+        "timestamp"
+    )
+    start_values = start_times.to_numpy()
+    end_values = end_times.to_numpy()
+
+    time_series["active_cases"] = [
+        int(((start_values <= ts) & (end_values >= ts)).sum())
+        for ts in time_series.index
+    ]
+    time_series["active_cases"] = time_series["active_cases"].ffill()
+
+    return time_series.reset_index()
 
 
 def filter_dev_cases(
@@ -102,12 +126,9 @@ def split_data(
     """
     # Determine the cutoff time based on the specified quantile of case start times.
     case_starts = df.groupby("case:concept:name")["time:timestamp"].min()
+    case_ends = df.groupby("case:concept:name")["time:timestamp"].max()
     cutoff_time = case_starts.quantile(split_quantile)
     logger.info(f"Splitting cases at cutoff time: {cutoff_time}")
-
-    # Compute the start and end times for each case to determine their relation to the cutoff.
-    case_ends = df.groupby("case:concept:name")["time:timestamp"].max()
-    case_starts = df.groupby("case:concept:name")["time:timestamp"].min()
 
     # Assign cases to train or test based on their start and end times relative to the cutoff.
     train_ids = case_ends[case_ends < cutoff_time].index
@@ -213,8 +234,24 @@ def preprocess(
             Structured dataset containing train and test prefix streams
             ready for feature extraction or modeling.
     """
-    cleaned_data = clean_data(raw)
-    train_df, test_df = split_data(cleaned_data.event_log)
+    cleaned_df = clean_event_log(raw.event_log)
+
+    case_times = (
+        cleaned_df.groupby("case:concept:name")["time:timestamp"]
+        .agg(["min", "max"])
+        .reset_index()
+        .rename(
+            columns={
+                "case:concept:name": "case_id",
+                "min": "start_time",
+                "max": "end_time",
+            }
+        )
+    )
+
+    time_series_df = preprocess_time_series(case_times)
+
+    train_df, test_df = split_data(cleaned_df)
 
     col_idx = {c: i for i, c in enumerate(train_df.columns)}
 
@@ -229,6 +266,7 @@ def preprocess(
         test_log=_build_trace_samples(test_df, prefix_generator),
         num_test_cases=len(test_df["case:concept:name"].unique()),
         col_idx=col_idx,
+        time_series=time_series_df,
     )
 
     return preprocessed_data

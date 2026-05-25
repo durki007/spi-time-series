@@ -4,3 +4,4 @@ categoricals
 artefacts
 serialisable
 capsys
+dayofweek
