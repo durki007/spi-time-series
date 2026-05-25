@@ -6,6 +6,10 @@ from spi_time_series.data.constants import EVENT_NAMES
 from spi_time_series.data.schemas import TraceSample
 
 
+def _hours(t2, t1):
+    return (t2 - t1) / np.timedelta64(1, "h")
+
+
 class BasicControlFlowFeatures:
     """
     Collection of common control-flow features for predictive process mining.
@@ -32,6 +36,18 @@ class BasicControlFlowFeatures:
         self.base_feature_count = 0
         self.activity_ohe_offset = 0
         self.transition_ohe_offset = 0
+
+        # feature names
+        self.feature_names = [
+            "elapsed_time_hours",
+            "prefix_length",
+            "time_since_last_event_hours",
+            "rework_count",
+        ]
+
+        # bag-of-activities
+        self.feature_names.extend(f"count_{event}" for event in EVENT_NAMES)
+        self.base_feature_count = len(self.feature_names)
 
     # ---------------------------------------------------------
     # METADATA
@@ -105,17 +121,7 @@ class BasicControlFlowFeatures:
         # Feature names
         # ---------------------------------------------------------
 
-        feature_names = [
-            "elapsed_time_hours",
-            "prefix_length",
-            "time_since_last_event_hours",
-            "rework_count",
-        ]
-
-        # bag-of-activities
-        feature_names.extend(f"count_{event}" for event in EVENT_NAMES)
-
-        self.base_feature_count = len(feature_names)
+        feature_names = self.feature_names
 
         # ---------------------------------------------------------
         # OHE feature names
@@ -163,17 +169,12 @@ class BasicControlFlowFeatures:
         # ---------------------------------------------------------
 
         if prefix_len > 1:
-            total_seconds = (
-                prefix[-1][timestamp_idx] - prefix[0][timestamp_idx]
-            ).total_seconds()
-
-            elapsed_hours = total_seconds / 3600.0
-
-            delta_seconds = (
-                prefix[-1][timestamp_idx] - prefix[-2][timestamp_idx]
-            ).total_seconds()
-
-            since_last_hours = delta_seconds / 3600.0
+            elapsed_hours = _hours(
+                prefix[-1][timestamp_idx], prefix[0][timestamp_idx]
+            )
+            since_last_hours = _hours(
+                prefix[-1][timestamp_idx], prefix[-2][timestamp_idx]
+            )
 
         else:
             elapsed_hours = 0.0
