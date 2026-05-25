@@ -21,11 +21,26 @@ def test_extract_time_series_features_builds_columns_and_resets_index():
     expected_columns = {
         "timestamp",
         "active_cases",
-        "active_cases__window_mean",
-        "active_cases__window_max",
-        "active_cases__window_std",
+        # rolling windows for multiple scales
+        "active_cases__window_mean_1h",
+        "active_cases__window_max_1h",
+        "active_cases__window_std_1h",
+        "active_cases__window_mean_6h",
+        "active_cases__window_max_6h",
+        "active_cases__window_std_6h",
+        "active_cases__window_mean_12h",
+        "active_cases__window_max_12h",
+        "active_cases__window_std_12h",
+        "active_cases__window_mean_24h",
+        "active_cases__window_max_24h",
+        "active_cases__window_std_24h",
+        # lags
         "active_cases__lag_1h",
         "active_cases__lag_6h",
+        # calendar context
+        "time_series_hour",
+        "time_series_dayofweek",
+        "time_series_is_weekend",
     }
 
     assert expected_columns.issubset(result.columns)

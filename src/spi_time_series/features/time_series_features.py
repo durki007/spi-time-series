@@ -39,6 +39,8 @@ def extract_time_series_features(time_series_df: pd.DataFrame) -> pd.DataFrame:
     df["active_cases__lag_6h"] = df["active_cases"].shift(6)
 
     df = df.bfill()
+    # replace any remaining NaNs (e.g., std over a single-sample window) with 0
+    df = df.fillna(0)
 
     return df.reset_index()
 
