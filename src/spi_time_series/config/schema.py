@@ -80,6 +80,7 @@ class DataConfig(BaseModel):
     valid_end_activities: list[str] = Field(default_factory=list)
     top_k_variants: int | None = None
     split_quantile: float = 0.8
+    dev_mode: bool = False
 
     @field_validator("top_k_variants")
     @classmethod

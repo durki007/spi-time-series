@@ -100,6 +100,7 @@ class PipelineBuilder:
         from spi_time_series.preprocessing.preprocess import (
             _build_trace_samples,
             clean_data,
+            filter_dev_cases,
             sliding_window_factory,
             split_data,
         )
@@ -125,6 +126,8 @@ class PipelineBuilder:
         )
 
         def _splitter(log) -> PreprocessedData:
+            if config.data.dev_mode:
+                log = filter_dev_cases(log)
             train_df, test_df = split_data(log, split_quantile=split_quantile)
             col_idx = {c: i for i, c in enumerate(train_df.columns)}
             return PreprocessedData(
