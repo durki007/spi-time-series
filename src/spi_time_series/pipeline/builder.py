@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from typing import Self
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    from spi_time_series.config.schema import RunConfig
 
 from sklearn.base import BaseEstimator
 
@@ -68,6 +71,64 @@ class PipelineBuilder:
         """Add a reporting strategy: ``(ModelArtifact, EvaluationReport, Path | None) -> None``."""
         self._reporters.append(fn)
         return self
+
+    @classmethod
+    def from_config(cls, config: RunConfig) -> PipelineBuilder:
+        """Construct a PipelineBuilder pre-populated from a RunConfig.
+
+        Wires dataset, preprocessor, splitter, and models from the config.
+        Does NOT wire with_feature_extractor — the target_generator encodes
+        domain logic (e.g. remaining time vs. loan outcome) that cannot be
+        expressed as a config scalar. Call builder.with_feature_extractor(...)
+        after from_config() before build().
+        """
+        from spi_time_series.config.loader import build_estimator
+        from spi_time_series.config.schema import RunConfig  # noqa: F401
+        from spi_time_series.data.schemas import PreprocessedData, RawData
+        from spi_time_series.preprocessing.preprocess import (
+            _build_trace_samples,
+            clean_data,
+            sliding_window_factory,
+            split_data,
+        )
+
+        builder = cls()
+
+        builder.with_dataset(Dataset())
+
+        valid_ends = config.data.valid_end_activities or None
+        top_k = config.data.top_k_variants
+
+        def _preprocessor(raw: RawData):
+            return clean_data(
+                raw, valid_ends=valid_ends, top_k_variants=top_k
+            ).event_log
+
+        builder.with_preprocessor(_preprocessor)
+
+        split_quantile = config.data.split_quantile
+        prefix_gen = sliding_window_factory(
+            min_length=config.prefix.min_length,
+            max_length=config.prefix.max_length,
+        )
+
+        def _splitter(log) -> PreprocessedData:
+            train_df, test_df = split_data(log, split_quantile=split_quantile)
+            col_idx = {c: i for i, c in enumerate(train_df.columns)}
+            return PreprocessedData(
+                train_log=_build_trace_samples(train_df, prefix_gen),
+                num_train_cases=len(train_df["case:concept:name"].unique()),
+                test_log=_build_trace_samples(test_df, prefix_gen),
+                num_test_cases=len(test_df["case:concept:name"].unique()),
+                col_idx=col_idx,
+            )
+
+        builder.with_splitter(_splitter)
+
+        for name, model_cfg in config.models.items():
+            builder.add_model(name, build_estimator(model_cfg))
+
+        return builder
 
     def build(self) -> Pipeline:
         """Validate required components and return the assembled Pipeline.

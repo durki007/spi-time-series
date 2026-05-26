@@ -68,4 +68,4 @@ coverage.xml
 .dmypy.json
 
 # claude settings
-.claude/settings.local.json
+.claude/
