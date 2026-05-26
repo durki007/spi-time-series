@@ -1,4 +1,3 @@
-import joblib
 import pytest
 import yaml
 from pydantic import ValidationError
@@ -101,25 +100,3 @@ def test_to_yaml_round_trip(regression_raw):
     assert config.prefix == reloaded.prefix
     assert config.search == reloaded.search
     assert config.models == reloaded.models
-
-
-def test_checkpoint_params_excludes_checkpoint_dir(regression_raw):
-    config = RunConfig.model_validate(regression_raw)
-    params = config.checkpoint_params()
-    assert "checkpoint_dir" not in params
-
-
-def test_checkpoint_params_is_joblib_hashable(regression_raw):
-    config = RunConfig.model_validate(regression_raw)
-    h = joblib.hash(config.checkpoint_params())
-    assert isinstance(h, str) and len(h) > 0
-
-
-def test_checkpoint_params_differs_for_different_configs(
-    regression_raw, classification_raw
-):
-    r = RunConfig.model_validate(regression_raw)
-    c = RunConfig.model_validate(classification_raw)
-    assert joblib.hash(r.checkpoint_params()) != joblib.hash(
-        c.checkpoint_params()
-    )

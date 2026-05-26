@@ -7,7 +7,6 @@ import pytest
 def regression_raw():
     return {
         "task": "regression",
-        "checkpoint_dir": "/tmp/checkpoints",
         "data": {
             "valid_end_activities": ["A_Denied"],
             "top_k_variants": None,

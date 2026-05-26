@@ -34,6 +34,7 @@ class PipelineBuilder:
         self._splitter: Splitter | None = None
         self._feature_extractor: FeatureExtractor | None = None
         self._models: dict[str, BaseEstimator] = {}
+        self._param_grids: dict[str, dict[str, list]] = {}
         self._evaluators: list[Evaluator] = []
         self._reporters: list[Reporter] = []
 
@@ -70,6 +71,17 @@ class PipelineBuilder:
     def add_reporter(self, fn: Reporter) -> Self:
         """Add a reporting strategy: ``(ModelArtifact, EvaluationReport, Path | None) -> None``."""
         self._reporters.append(fn)
+        return self
+
+    def add_hyperparams(
+        self, model_name: str, param_grid: dict[str, list]
+    ) -> Self:
+        """Add a hyperparameter grid for a model to be used by the search stage."""
+        if model_name not in self._models:
+            raise ValueError(
+                f"Cannot add hyperparameters for unknown model '{model_name}'."
+            )
+        self._param_grids[model_name] = param_grid
         return self
 
     @classmethod
@@ -127,6 +139,8 @@ class PipelineBuilder:
 
         for name, model_cfg in config.models.items():
             builder.add_model(name, build_estimator(model_cfg))
+            if model_cfg.param_grid:
+                builder._param_grids[name] = dict(model_cfg.param_grid)
 
         return builder
 
@@ -157,6 +171,7 @@ class PipelineBuilder:
             splitter=self._splitter,  # type: ignore[arg-type]
             feature_extractor=self._feature_extractor,  # type: ignore[arg-type]
             models=self._models,
+            param_grids=self._param_grids,
             evaluators=self._evaluators,
             reporters=self._reporters,
         )

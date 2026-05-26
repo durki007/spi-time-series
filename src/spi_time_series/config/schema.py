@@ -142,7 +142,6 @@ class RunConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     task: TaskType
-    checkpoint_dir: Path
     data: DataConfig = Field(default_factory=DataConfig)
     prefix: PrefixConfig = Field(default_factory=PrefixConfig)
     features: FeaturesConfig = Field(default_factory=FeaturesConfig)
@@ -179,6 +178,3 @@ class RunConfig(BaseModel):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text, encoding="utf-8")
         return text
-
-    def checkpoint_params(self) -> dict:
-        return self.model_dump(mode="json", exclude={"checkpoint_dir"})

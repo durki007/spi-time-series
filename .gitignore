@@ -21,6 +21,7 @@ ENV/
 *.ipynb_checkpoints
 
 # Data — commit only small samples; keep large files out of the repo
+output/
 data/raw/
 data/interim/
 data/processed/
