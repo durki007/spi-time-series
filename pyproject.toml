@@ -36,6 +36,7 @@ optional = true
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^4.5.1"
+ruff = "^0.15.11"
 
 [tool.poetry.group.test]
 optional = true
