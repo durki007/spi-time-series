@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
 import numpy as np
 from sklearn.base import BaseEstimator, clone
@@ -12,10 +11,8 @@ from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 
+from spi_time_series.config.schema import SearchConfig
 from spi_time_series.data.schemas import FeatureSet, ModelArtifact
-
-if TYPE_CHECKING:
-    from spi_time_series.config.schema import SearchConfig
 
 logger = logging.getLogger(__name__)
 

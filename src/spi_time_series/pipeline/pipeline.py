@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import joblib
 from sklearn.base import BaseEstimator
 
+from spi_time_series.config.schema import SearchConfig
 from spi_time_series.data import Dataset
 from spi_time_series.data.schemas import (
     EvaluationReport,
@@ -23,9 +24,6 @@ from spi_time_series.data.types import (
 )
 from spi_time_series.models import search_hyperparams, train
 from spi_time_series.pipeline.state import PipelineState
-
-if TYPE_CHECKING:
-    from spi_time_series.config.schema import SearchConfig
 
 logger = logging.getLogger(__name__)
 
