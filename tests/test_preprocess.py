@@ -2,10 +2,10 @@ import pandas as pd
 import pytest
 
 from spi_time_series.data.schemas import RawData, TraceSample
+from spi_time_series.features.time_series_features import preprocess_time_series
 from spi_time_series.preprocessing.preprocess import (
     _build_trace_samples,
     preprocess,
-    preprocess_time_series,
     sliding_window_factory,
 )
 

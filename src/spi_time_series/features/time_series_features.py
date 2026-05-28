@@ -1,4 +1,63 @@
+from collections.abc import Iterable
+
+import numpy as np
 import pandas as pd
+
+from spi_time_series.data.schemas import PrefixFeature, TraceSample
+
+
+class ActiveCaseCountFeature(PrefixFeature):
+    """
+    Feature extractor that computes the number of active cases at the time of the last event in the prefix.
+    """
+
+    time_series: pd.DataFrame
+    cleaned_event_log: pd.DataFrame
+    featured_df: pd.DataFrame
+
+    def __init__(self, cleaned_event_log: pd.DataFrame):
+        self.cleaned_event_log = cleaned_event_log
+
+    def name(self) -> str:
+        return "active_cases"
+
+    def fit(
+        self,
+        event_log: Iterable[TraceSample],
+        col_idx_mapping: dict[str, int],
+        **config_kwargs,
+    ):
+        self.time_series = self._preprocess_time_series()
+        self.featured_df = extract_time_series_features(self.time_series)
+
+    def _preprocess_time_series(self) -> pd.DataFrame:
+        case_times = (
+            self.cleaned_event_log.groupby("case:concept:name")[
+                "time:timestamp"
+            ]
+            .agg(["min", "max"])
+            .reset_index()
+            .rename(
+                columns={
+                    "case:concept:name": "case_id",
+                    "min": "start_time",
+                    "max": "end_time",
+                }
+            )
+        )
+        return preprocess_time_series(case_times)
+
+    def __call__(
+        self, prefix: np.ndarray, col_idx_mapping: dict[str, int]
+    ) -> pd.Series:
+        ts = pd.to_datetime(prefix[col_idx_mapping["last_event_timestamp"]])
+        sorted_features = self.featured_df.sort_values("timestamp").reset_index(
+            drop=True
+        )
+        idx = max(
+            0, sorted_features["timestamp"].searchsorted(ts, side="right") - 1
+        )
+        return sorted_features.iloc[idx].drop("timestamp")
 
 
 def extract_time_series_features(time_series_df: pd.DataFrame) -> pd.DataFrame:
@@ -72,3 +131,50 @@ def align_features_to_prefixes(
     )
 
     return merged_df.drop(columns=["timestamp"])
+
+
+def preprocess_time_series(event_log_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Build a continuous hourly timestamp grid for a time-series event log.
+
+    The grid spans the full log from the minimum start time to the maximum
+    end time and uses a 1-hour frequency. The returned frame includes
+    active case counts for each timestamp.
+    """
+    required_columns = {"case_id", "start_time", "end_time"}
+    missing_columns = required_columns.difference(event_log_df.columns)
+    if missing_columns:
+        missing = ", ".join(sorted(missing_columns))
+        raise KeyError(f"Missing required columns: {missing}")
+
+    if event_log_df.empty:
+        return pd.DataFrame(
+            {
+                "timestamp": pd.DatetimeIndex([], name="timestamp"),
+                "active_cases": pd.Series(dtype="int64"),
+            }
+        )
+
+    start_times = pd.to_datetime(event_log_df["start_time"])
+    end_times = pd.to_datetime(event_log_df["end_time"])
+
+    min_start_time = start_times.min()
+    max_end_time = end_times.max()
+
+    timestamp_grid = pd.date_range(
+        start=min_start_time, end=max_end_time, freq="1h"
+    )
+
+    time_series = pd.DataFrame({"timestamp": timestamp_grid}).set_index(
+        "timestamp"
+    )
+    start_values = start_times.to_numpy()
+    end_values = end_times.to_numpy()
+
+    time_series["active_cases"] = [
+        int(((start_values <= ts) & (end_values >= ts)).sum())
+        for ts in time_series.index
+    ]
+    time_series["active_cases"] = time_series["active_cases"].ffill()
+
+    return time_series.reset_index()

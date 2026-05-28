@@ -139,7 +139,6 @@ class PipelineBuilder:
                 test_log=_build_trace_samples(test_df, prefix_gen),
                 num_test_cases=len(test_df["case:concept:name"].unique()),
                 col_idx=col_idx,
-                time_series=None,
             )
 
         builder.with_splitter(_splitter)

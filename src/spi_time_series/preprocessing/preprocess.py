@@ -54,53 +54,6 @@ def clean_event_log(
     return df
 
 
-def preprocess_time_series(event_log_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Build a continuous hourly timestamp grid for a time-series event log.
-
-    The grid spans the full log from the minimum start time to the maximum
-    end time and uses a 1-hour frequency. The returned frame includes
-    active case counts for each timestamp.
-    """
-    required_columns = {"case_id", "start_time", "end_time"}
-    missing_columns = required_columns.difference(event_log_df.columns)
-    if missing_columns:
-        missing = ", ".join(sorted(missing_columns))
-        raise KeyError(f"Missing required columns: {missing}")
-
-    if event_log_df.empty:
-        return pd.DataFrame(
-            {
-                "timestamp": pd.DatetimeIndex([], name="timestamp"),
-                "active_cases": pd.Series(dtype="int64"),
-            }
-        )
-
-    start_times = pd.to_datetime(event_log_df["start_time"])
-    end_times = pd.to_datetime(event_log_df["end_time"])
-
-    min_start_time = start_times.min()
-    max_end_time = end_times.max()
-
-    timestamp_grid = pd.date_range(
-        start=min_start_time, end=max_end_time, freq="1h"
-    )
-
-    time_series = pd.DataFrame({"timestamp": timestamp_grid}).set_index(
-        "timestamp"
-    )
-    start_values = start_times.to_numpy()
-    end_values = end_times.to_numpy()
-
-    time_series["active_cases"] = [
-        int(((start_values <= ts) & (end_values >= ts)).sum())
-        for ts in time_series.index
-    ]
-    time_series["active_cases"] = time_series["active_cases"].ffill()
-
-    return time_series.reset_index()
-
-
 def filter_dev_cases(
     df: pd.DataFrame, dev_quantile: float = 0.1
 ) -> pd.DataFrame:
@@ -236,21 +189,6 @@ def preprocess(
     """
     cleaned_df = clean_event_log(raw.event_log)
 
-    case_times = (
-        cleaned_df.groupby("case:concept:name")["time:timestamp"]
-        .agg(["min", "max"])
-        .reset_index()
-        .rename(
-            columns={
-                "case:concept:name": "case_id",
-                "min": "start_time",
-                "max": "end_time",
-            }
-        )
-    )
-
-    time_series_df = preprocess_time_series(case_times)
-
     train_df, test_df = split_data(cleaned_df)
 
     col_idx = {c: i for i, c in enumerate(train_df.columns)}
@@ -266,7 +204,6 @@ def preprocess(
         test_log=_build_trace_samples(test_df, prefix_generator),
         num_test_cases=len(test_df["case:concept:name"].unique()),
         col_idx=col_idx,
-        time_series=time_series_df,
     )
 
     return preprocessed_data

@@ -5,14 +5,14 @@ from typing import Any
 import numpy as np
 
 from spi_time_series.data.constants import EVENT_NAMES
-from spi_time_series.data.schemas import TraceSample
+from spi_time_series.data.schemas import PrefixFeature, TraceSample
 
 
 def _hours(t2, t1):
     return (t2 - t1) / np.timedelta64(1, "h")
 
 
-class BasicControlFlowFeatures:
+class BasicControlFlowFeatures(PrefixFeature):
     """
     Collection of common control-flow features for predictive process mining.
     """
