@@ -8,6 +8,7 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.12"
 packages = [{ include = "src" }]
+
 dependencies = [
     "pm4py (>=2.7.22.2,<3.0.0.0)",
     "pandas (>=2.0.0,<3.0.0)",
@@ -35,6 +36,7 @@ optional = true
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^4.5.1"
+ruff = "^0.15.11"
 
 [tool.poetry.group.test]
 optional = true

@@ -2,14 +2,20 @@ repos:
   # -------------------------
   # Ruff (lint + formatter)
   # -------------------------
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.11  # you can update this periodically
+  - repo: local
     hooks:
       - id: ruff
-        args: [--fix]
-        # exclude: ^notebooks/
+        name: ruff (lint)
+        entry: poetry run ruff check --fix
+        language: system
+        types: [python]
+        pass_filenames: true
       - id: ruff-format
-        # exclude: ^notebooks/
+        name: ruff-format
+        entry: poetry run ruff format
+        language: system
+        types: [python]
+        pass_filenames: true
 
   # -------------------------
   # MyPy
