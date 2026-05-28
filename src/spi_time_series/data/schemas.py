@@ -89,5 +89,4 @@ class PrefixFeature(Protocol):
 
     def name(self) -> str: ...
 
-    @property
-    def feature_names(self) -> list[str]: ...
+    feature_names: list[str]

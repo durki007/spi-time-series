@@ -29,6 +29,16 @@ class ActiveCaseCountFeature(PrefixFeature):
     ):
         self.time_series = self._preprocess_time_series()
         self.featured_df = extract_time_series_features(self.time_series)
+        self.featured_df = self.featured_df.sort_values(
+            "timestamp"
+        ).reset_index(drop=True)
+        self.feature_names = [
+            col for col in self.featured_df.columns if col != "timestamp"
+        ]
+        self._ts_array = self.featured_df["timestamp"].to_numpy()
+        self._features_array = self.featured_df[self.feature_names].to_numpy(
+            dtype=np.float32
+        )
 
     def _preprocess_time_series(self) -> pd.DataFrame:
         case_times = (
@@ -49,15 +59,14 @@ class ActiveCaseCountFeature(PrefixFeature):
 
     def __call__(
         self, prefix: np.ndarray, col_idx_mapping: dict[str, int]
-    ) -> pd.Series:
-        ts = pd.to_datetime(prefix[col_idx_mapping["last_event_timestamp"]])
-        sorted_features = self.featured_df.sort_values("timestamp").reset_index(
-            drop=True
-        )
-        idx = max(
-            0, sorted_features["timestamp"].searchsorted(ts, side="right") - 1
-        )
-        return sorted_features.iloc[idx].drop("timestamp")
+    ) -> np.ndarray:
+        ts = pd.to_datetime(
+            prefix[-1, col_idx_mapping["time:timestamp"]]
+        ).to_datetime64()
+        idx = np.searchsorted(self._ts_array, ts, side="right") - 1
+        if idx < 0:
+            idx = 0
+        return self._features_array[idx]
 
 
 def extract_time_series_features(time_series_df: pd.DataFrame) -> pd.DataFrame:
@@ -95,7 +104,21 @@ def extract_time_series_features(time_series_df: pd.DataFrame) -> pd.DataFrame:
         df[f"active_cases__window_std_{window}"] = rolling_window.std()
 
     df["active_cases__lag_1h"] = df["active_cases"].shift(1)
+    df["active_cases__trend_1h"] = (
+        df["active_cases"] - df["active_cases__lag_1h"]
+    )
     df["active_cases__lag_6h"] = df["active_cases"].shift(6)
+    df["active_cases__trend_6h"] = (
+        df["active_cases"] - df["active_cases__lag_6h"]
+    )
+    df["active_cases__lag_12h"] = df["active_cases"].shift(12)
+    df["active_cases__trend_12h"] = (
+        df["active_cases"] - df["active_cases__lag_12h"]
+    )
+    df["active_cases__lag_24h"] = df["active_cases"].shift(24)
+    df["active_cases__trend_24h"] = (
+        df["active_cases"] - df["active_cases__lag_24h"]
+    )
 
     df = df.bfill()
     # replace any remaining NaNs (e.g., std over a single-sample window) with 0
