@@ -1,6 +1,7 @@
 pbar
 preds
 categoricals
+dayofweek
 artefacts
 serialisable
 capsys

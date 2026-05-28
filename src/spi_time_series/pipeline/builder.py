@@ -99,7 +99,7 @@ class PipelineBuilder:
         from spi_time_series.data.schemas import PreprocessedData, RawData
         from spi_time_series.preprocessing.preprocess import (
             _build_trace_samples,
-            clean_data,
+            clean_event_log,
             filter_dev_cases,
             sliding_window_factory,
             split_data,
@@ -113,9 +113,12 @@ class PipelineBuilder:
         top_k = config.data.top_k_variants
 
         def _preprocessor(raw: RawData):
-            return clean_data(
-                raw, valid_ends=valid_ends, top_k_variants=top_k
-            ).event_log
+            cleaned_log = clean_event_log(
+                raw.event_log,
+                valid_end_activities=valid_ends,
+                top_k_variants=top_k,
+            )
+            return cleaned_log
 
         builder.with_preprocessor(_preprocessor)
 
@@ -136,6 +139,7 @@ class PipelineBuilder:
                 test_log=_build_trace_samples(test_df, prefix_gen),
                 num_test_cases=len(test_df["case:concept:name"].unique()),
                 col_idx=col_idx,
+                time_series=None,
             )
 
         builder.with_splitter(_splitter)
