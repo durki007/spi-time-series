@@ -3,10 +3,10 @@ from collections.abc import Iterable
 import numpy as np
 import pandas as pd
 
-from spi_time_series.data.schemas import PrefixFeature, TraceSample
+from spi_time_series.data.schemas import TraceSample
 
 
-class ActiveCaseCountFeature(PrefixFeature):
+class ActiveCaseCountFeature:
     """
     Feature extractor that computes the number of active cases at the time of the last event in the prefix.
     """
@@ -15,8 +15,8 @@ class ActiveCaseCountFeature(PrefixFeature):
     cleaned_event_log: pd.DataFrame
     featured_df: pd.DataFrame
 
-    def __init__(self, cleaned_event_log: pd.DataFrame):
-        self.cleaned_event_log = cleaned_event_log
+    def __init__(self):
+        self.feature_names = ["active_cases"]
 
     def name(self) -> str:
         return "active_cases"
@@ -27,6 +27,13 @@ class ActiveCaseCountFeature(PrefixFeature):
         col_idx_mapping: dict[str, int],
         **config_kwargs,
     ):
+        cleaned_log = config_kwargs.get("cleaned_log")
+        if cleaned_log is None:
+            raise ValueError(
+                "ActiveCaseCountFeature.fit() requires 'cleaned_log' kwarg "
+                "(a cleaned event log DataFrame)."
+            )
+        self.cleaned_event_log = cleaned_log
         self.time_series = self._preprocess_time_series()
         self.featured_df = extract_time_series_features(self.time_series)
 
@@ -50,14 +57,15 @@ class ActiveCaseCountFeature(PrefixFeature):
     def __call__(
         self, prefix: np.ndarray, col_idx_mapping: dict[str, int]
     ) -> pd.Series:
-        ts = pd.to_datetime(prefix[col_idx_mapping["last_event_timestamp"]])
+        ts = pd.to_datetime(prefix[-1][col_idx_mapping["time:timestamp"]])
         sorted_features = self.featured_df.sort_values("timestamp").reset_index(
             drop=True
         )
         idx = max(
             0, sorted_features["timestamp"].searchsorted(ts, side="right") - 1
         )
-        return sorted_features.iloc[idx].drop("timestamp")
+        active_cases = sorted_features.iloc[idx]["active_cases"]
+        return [active_cases]
 
 
 def extract_time_series_features(time_series_df: pd.DataFrame) -> pd.DataFrame:

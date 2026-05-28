@@ -113,7 +113,10 @@ def extract_features_builder(
     def extract_features(data: PreprocessedData) -> FeatureSet:
         # fit features on training data
         for feature in features:
-            kwargs = feature_kwargs.get(feature.name(), {})
+            kwargs = {
+                **feature_kwargs.get(feature.name(), {}),
+                "cleaned_log": data.cleaned_log,
+            }
             feature.fit(data.train_log, data.col_idx, **kwargs)
 
         X_train, y_train, feature_names = generate_feature_matrix(

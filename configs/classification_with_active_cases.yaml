@@ -1,4 +1,4 @@
-task: regression
+task: classification
 
 data:
   valid_end_activities:
@@ -9,7 +9,6 @@ data:
     - "A_Denied"
   top_k_variants: null
   split_quantile: 0.8
-  dev_mode: true
 
 prefix:
   min_length: 3
@@ -19,22 +18,26 @@ features:
   one_hot_encode_categorical: false
   enabled_features:
     - BasicControlFlowFeatures
+    - ActiveCaseCountFeature
 
 search:
   n_iter: 10
   cv_folds: 3
   random_state: 42
-  search_sample_size: null
+  search_sample_size: 50000
 
 models:
-  ridge:
-    type: Ridge
-    params: {}
+  logistic_regression:
+    type: LogisticRegression
+    params:
+      max_iter: 5000
+      solver: saga
+      random_state: 42
     param_grid:
-      alpha: [0.0001, 0.001, 0.01, 0.1, 1.0, 5.0, 10.0, 50.0, 100.0, 1000.0]
+      C: [0.0001, 0.001, 0.01, 0.1, 1.0, 5.0, 10.0, 50.0, 100.0, 1000.0]
 
   random_forest:
-    type: RandomForestRegressor
+    type: RandomForestClassifier
     params:
       n_jobs: -1
       random_state: 42
@@ -45,7 +48,7 @@ models:
       max_features: ["sqrt", 0.5]
 
   hist_gradient_boosting:
-    type: HistGradientBoostingRegressor
+    type: HistGradientBoostingClassifier
     params:
       random_state: 42
     param_grid:
