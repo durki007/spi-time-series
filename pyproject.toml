@@ -8,6 +8,7 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.12"
 packages = [{ include = "src" }]
+
 dependencies = [
     "pm4py (>=2.7.22.2,<3.0.0.0)",
     "pandas (>=2.0.0,<3.0.0)",
@@ -25,6 +26,9 @@ dependencies = [
     "r4pm (>=0.5.5,<0.6.0)",
     "polars (>=1.40.1,<2.0.0)",
     "ipykernel (>=7.2.0,<8.0.0)",
+    "notebook (>=7.0.0,<8.0.0)",
+    "pydantic (>=2.0.0,<3.0.0)",
+    "pyyaml (>=6.0,<7.0)",
 ]
 
 [tool.poetry.group.dev]
@@ -32,6 +36,7 @@ optional = true
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^4.5.1"
+ruff = "^0.15.11"
 
 [tool.poetry.group.test]
 optional = true

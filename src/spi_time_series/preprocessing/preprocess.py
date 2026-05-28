@@ -77,6 +77,18 @@ def clean_data(
     return RawData(event_log=cleaned_log)
 
 
+def filter_dev_cases(
+    df: pd.DataFrame, dev_quantile: float = 0.1
+) -> pd.DataFrame:
+    case_starts = df.groupby("case:concept:name")["time:timestamp"].min()
+    cutoff = case_starts.quantile(dev_quantile)
+    dev_ids = case_starts[case_starts <= cutoff].index
+    logger.info(
+        f"Dev mode: keeping {len(dev_ids)} cases (≤ {dev_quantile:.0%} quantile, cutoff {cutoff})"
+    )
+    return df[df["case:concept:name"].isin(dev_ids)]
+
+
 def split_data(
     df: pd.DataFrame, split_quantile: float = 0.8
 ) -> tuple[pd.DataFrame, pd.DataFrame]:

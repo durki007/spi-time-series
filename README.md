@@ -82,6 +82,67 @@ This configures:
 - **Import sorting** — Ruff organises imports on save
 - **Type checking** — Mypy runs in daemon mode (`dmypy`) for fast feedback; Pylance's built-in checker is disabled to avoid duplicate errors
 
+### Running the pipeline
+
+**Full run**
+
+```bash
+python -m spi_time_series.main configs/regression.yaml --output-dir results/
+```
+
+This runs all four stages (preprocess → extract → train → evaluate), saves stage checkpoints under `checkpoint_dir/cli/`, writes results to `results/`, and saves the resolved config to `results/run_config.yaml`.
+
+**Dry-run** — print the resolved config and exit without touching the pipeline:
+
+```bash
+python -m spi_time_series.main configs/regression.yaml --dry-run
+```
+
+**Config overrides** — apply dot-notation key=value pairs after loading the YAML:
+
+```bash
+python -m spi_time_series.main configs/regression.yaml \
+    --override search.n_iter=5 \
+    --override prefix.max_length=10
+```
+
+**Staged execution** — run only selected stages; skipped stages load from their last checkpoint (raises a clear error if none exists):
+
+```bash
+# First run: preprocess and build feature matrices only
+python -m spi_time_series.main configs/regression.yaml --stages preprocess,extract
+
+# Later: train and evaluate using the cached feature matrices
+python -m spi_time_series.main configs/regression.yaml --stages train,evaluate --output-dir results/
+```
+
+**Force recomputation** — ignore existing checkpoints and recompute every selected stage:
+
+```bash
+python -m spi_time_series.main configs/regression.yaml --no-cache --output-dir results/
+```
+
+All options together:
+
+```
+usage: python -m spi_time_series.main [-h] [--override KEY=VALUE]
+                                       [--dry-run]
+                                       [--stages STAGE[,STAGE...]]
+                                       [--no-cache]
+                                       [--output-dir PATH]
+                                       config
+
+positional arguments:
+  config                Path to RunConfig YAML file
+
+options:
+  --override KEY=VALUE  Dot-notation config override (repeatable)
+  --dry-run             Print resolved config and exit
+  --stages              Comma-separated subset of: preprocess, extract, train, evaluate
+  --no-cache            Skip reading existing checkpoints; always recompute
+  --output-dir PATH     Directory for results and saved config (default: .)
+```
+
 ### Running checks manually
 
 Run all checks across the entire codebase (mirrors what CI does):
