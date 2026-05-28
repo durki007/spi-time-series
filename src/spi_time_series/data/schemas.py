@@ -81,7 +81,10 @@ class PrefixFeature(Protocol):
     ) -> pd.Series: ...
 
     def fit(
-        self, traces: Iterable[TraceSample], col_idx_mapping: dict[str, int]
+        self,
+        event_log: Iterable[TraceSample],
+        col_idx_mapping: dict[str, int],
+        **config_kwargs,
     ): ...
 
     def name(self) -> str: ...

@@ -1,4 +1,6 @@
 from collections import Counter
+from collections.abc import Iterable
+from typing import Any
 
 import numpy as np
 
@@ -62,10 +64,11 @@ class BasicControlFlowFeatures:
 
     def fit(
         self,
-        event_log: list[TraceSample],
+        event_log: Iterable[TraceSample],
         col_idx_mapping: dict[str, int],
         min_last_activity: int = 50,
         min_last_transition: int = 750,
+        **kwargs: Any,
     ):
         """Determine and set feature names of the class and initialize one hot encoders."""
         activity_idx = col_idx_mapping[self.activity_column]
