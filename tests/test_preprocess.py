@@ -4,7 +4,6 @@ import pytest
 from spi_time_series.data.schemas import RawData, TraceSample
 from spi_time_series.preprocessing.preprocess import (
     _build_trace_samples,
-    build_traces,
     preprocess,
     sliding_window_factory,
 )
@@ -78,24 +77,6 @@ def sample_log():
 @pytest.fixture
 def raw(sample_log):
     return RawData(event_log=sample_log)
-
-
-# ----------------------------
-# Tests: build_traces
-# ----------------------------
-
-
-def test_build_traces_orders_and_groups(sample_log):
-    traces = list(build_traces(sample_log))
-
-    # we have 5 cases in the fixture
-    assert len(traces) == 5
-
-    case_ids = {t[0] for t in traces}
-    assert case_ids == {"A", "B", "C", "D", "E"}
-
-    trace_a = next(df for cid, df in traces if cid == "A")
-    assert trace_a["concept:name"].tolist() == ["x", "y"]
 
 
 # ----------------------------

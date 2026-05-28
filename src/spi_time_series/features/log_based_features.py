@@ -1,8 +1,15 @@
+from collections import Counter
+from collections.abc import Iterable
+from typing import Any
+
 import numpy as np
-import pandas as pd
-from sklearn.preprocessing import OneHotEncoder
 
 from spi_time_series.data.constants import EVENT_NAMES
+from spi_time_series.data.schemas import TraceSample
+
+
+def _hours(t2, t1):
+    return (t2 - t1) / np.timedelta64(1, "h")
 
 
 class BasicControlFlowFeatures:
@@ -20,144 +27,210 @@ class BasicControlFlowFeatures:
         self.timestamp_column = timestamp_column
         self.one_hot_encode_categorical = one_hot_encode_categorical
 
-        self.ohe_last_activity: OneHotEncoder | None = None
-        self.ohe_last_transition: OneHotEncoder | None = None
+        # OHE mappings
+        self.activity_to_ohe_idx: dict[str, int] = {}
+        self.transition_to_ohe_idx: dict[str, int] = {}
 
-        if self.one_hot_encode_categorical:
-            self._init_encoders()
+        # fixed feature names/order
+        self.feature_names: list[str] = []
+
+        # feature offsets
+        self.base_feature_count = 0
+        self.activity_ohe_offset = 0
+        self.transition_ohe_offset = 0
+
+        # feature names
+        self.feature_names = [
+            "elapsed_time_hours",
+            "prefix_length",
+            "time_since_last_event_hours",
+            "rework_count",
+        ]
+
+        # bag-of-activities
+        self.feature_names.extend(f"count_{event}" for event in EVENT_NAMES)
+        self.base_feature_count = len(self.feature_names)
 
     # ---------------------------------------------------------
-    # INITIALIZE ENCODERS
+    # METADATA
     # ---------------------------------------------------------
-
-    def _init_encoders(self):
-        self.ohe_last_activity = OneHotEncoder(
-            handle_unknown="ignore",
-            sparse_output=False,
-        )
-
-        self.ohe_last_transition = OneHotEncoder(
-            handle_unknown="ignore",
-            sparse_output=False,
-        )
-
-        # Fit on known space
-        self.ohe_last_activity.fit(np.array(EVENT_NAMES).reshape(-1, 1))
-
-        transitions = [f"{a}->{b}" for a in EVENT_NAMES for b in EVENT_NAMES]
-
-        self.ohe_last_transition.fit(np.array(transitions).reshape(-1, 1))
 
     def name(self):
         return "BasicControlFlowFeatures"
 
+    # ---------------------------------------------------------
+    # FIT
+    # ---------------------------------------------------------
+
+    def fit(
+        self,
+        event_log: Iterable[TraceSample],
+        col_idx_mapping: dict[str, int],
+        min_last_activity: int = 50,
+        min_last_transition: int = 750,
+        **kwargs: Any,
+    ):
+        """Determine and set feature names of the class and initialize one hot encoders."""
+        activity_idx = col_idx_mapping[self.activity_column]
+
+        activity_counter: Counter[str] = Counter()
+        transition_counter: Counter[str] = Counter()
+
+        for trace in event_log:
+            data = trace.data
+
+            if len(data) == 0:
+                continue
+
+            activities = data[:, activity_idx]
+
+            activity_counter.update(activities)
+
+            if len(activities) >= 2:
+                transitions = (
+                    f"{a}->{b}"
+                    for a, b in zip(
+                        activities[:-1], activities[1:], strict=True
+                    )
+                )
+
+                transition_counter.update(transitions)
+
+        # ---------------------------------------------------------
+        # Frequent categories
+        # ---------------------------------------------------------
+
+        frequent_activities = sorted(
+            k for k, v in activity_counter.items() if v >= min_last_activity
+        )
+
+        frequent_transitions = sorted(
+            k for k, v in transition_counter.items() if v >= min_last_transition
+        )
+
+        # ---------------------------------------------------------
+        # OHE mappings
+        # ---------------------------------------------------------
+
+        self.activity_to_ohe_idx = {
+            act: i for i, act in enumerate(frequent_activities)
+        }
+
+        self.transition_to_ohe_idx = {
+            tr: i for i, tr in enumerate(frequent_transitions)
+        }
+
+        # ---------------------------------------------------------
+        # Feature names
+        # ---------------------------------------------------------
+
+        feature_names = self.feature_names
+
+        # ---------------------------------------------------------
+        # OHE feature names
+        # ---------------------------------------------------------
+
+        self.activity_ohe_offset = len(feature_names)
+
+        if self.one_hot_encode_categorical:
+            feature_names.extend(
+                f"last_activity__{act}" for act in frequent_activities
+            )
+
+        self.transition_ohe_offset = len(feature_names)
+
+        if self.one_hot_encode_categorical:
+            feature_names.extend(
+                f"last_transition__{tr}" for tr in frequent_transitions
+            )
+
+        self.feature_names = feature_names
+
+    # ---------------------------------------------------------
+    # EXTRACT
+    # ---------------------------------------------------------
+
     def __call__(
-        self, prefix: np.ndarray, col_idx_mapping: dict[str, int]
-    ) -> pd.Series:
-        features = {}
+        self,
+        prefix: np.ndarray,
+        col_idx_mapping: dict[str, int],
+    ) -> np.ndarray:
+
         timestamp_idx = col_idx_mapping[self.timestamp_column]
         activity_idx = col_idx_mapping[self.activity_column]
 
-        # ---------------------------------------------------------
-        # ELAPSED TIME
-        # ---------------------------------------------------------
-
-        if len(prefix) > 1:
-            total_seconds = (
-                prefix[:, timestamp_idx].max() - prefix[:, timestamp_idx].min()
-            ).total_seconds()
-            features["elapsed_time_hours"] = total_seconds / 3600
-        else:
-            features["elapsed_time_hours"] = 0.0
+        out = np.zeros(len(self.feature_names), dtype=np.float32)
 
         # ---------------------------------------------------------
         # PREFIX LENGTH
         # ---------------------------------------------------------
 
-        features["prefix_length"] = prefix.shape[0]
+        prefix_len = prefix.shape[0]
 
         # ---------------------------------------------------------
-        # LAST ACTIVITY
+        # ELAPSED TIME
         # ---------------------------------------------------------
 
-        last_activity = prefix[-1][activity_idx] if len(prefix) > 0 else None
-        features["last_activity"] = last_activity
+        if prefix_len > 1:
+            elapsed_hours = _hours(
+                prefix[-1][timestamp_idx], prefix[0][timestamp_idx]
+            )
+            since_last_hours = _hours(
+                prefix[-1][timestamp_idx], prefix[-2][timestamp_idx]
+            )
 
-        # ---------------------------------------------------------
-        # TIME SINCE LAST EVENT
-        # ---------------------------------------------------------
-
-        if len(prefix) > 1:
-            delta_seconds = (
-                prefix[-1][timestamp_idx] - prefix[-2][timestamp_idx]
-            ).total_seconds()
-            features["time_since_last_event_hours"] = delta_seconds / 3600
         else:
-            features["time_since_last_event_hours"] = 0.0
+            elapsed_hours = 0.0
+            since_last_hours = 0.0
+
+        out[0] = elapsed_hours
+        out[1] = prefix_len
+        out[2] = since_last_hours
 
         # ---------------------------------------------------------
         # REWORK COUNT
         # ---------------------------------------------------------
 
-        unique_activities = len(np.unique(prefix[:, activity_idx]))
-        features["rework_count"] = prefix.shape[0] - unique_activities
+        activities = prefix[:, activity_idx]
 
-        # ---------------------------------------------------------
-        # LAST TRANSITION
-        # ---------------------------------------------------------
-
-        if len(prefix) >= 2:
-            prev_activity = prefix[-2][activity_idx]
-            last_transition = f"{prev_activity}->{last_activity}"
-        else:
-            last_transition = None
-
-        features["last_transition"] = last_transition
+        # rework count
+        unique_activities = len(set(activities))
+        out[3] = prefix_len - unique_activities
 
         # ---------------------------------------------------------
         # BAG OF ACTIVITIES
         # ---------------------------------------------------------
 
-        counts = {event: 0 for event in EVENT_NAMES}
-        counts.update(
-            dict(
-                zip(
-                    *np.unique(prefix[:, activity_idx], return_counts=True),
-                    strict=True,
-                )
-            )
-        )
+        counts = Counter(activities)
 
-        for k, v in counts.items():
-            features[f"count_{k}"] = v
+        offset = 4
+
+        for event in EVENT_NAMES:
+            out[offset] = counts.get(event, 0)
+            offset += 1
 
         # ---------------------------------------------------------
-        # ONE HOT ENCODING of categorical features
+        # LAST ACTIVITY / TRANSITION OHE
         # ---------------------------------------------------------
 
-        if (
-            self.one_hot_encode_categorical
-            and self.ohe_last_activity is not None
-            and self.ohe_last_transition is not None
-        ):
-            # last_activity OHE
-            if last_activity is not None:
-                vec = self.ohe_last_activity.transform([[last_activity]])
-                for i, col in enumerate(self.ohe_last_activity.categories_[0]):
-                    features[f"last_activity__{col}"] = vec[0, i]
-            else:
-                for col in self.ohe_last_activity.categories_[0]:
-                    features[f"last_activity__{col}"] = 0
+        if self.one_hot_encode_categorical and prefix_len > 0:
+            last_activity = activities[-1]
 
-            # last_transition OHE
-            if last_transition is not None:
-                vec = self.ohe_last_transition.transform([[last_transition]])
-                for i, col in enumerate(
-                    self.ohe_last_transition.categories_[0]
-                ):
-                    features[f"last_transition__{col}"] = vec[0, i]
-            else:
-                for col in self.ohe_last_transition.categories_[0]:
-                    features[f"last_transition__{col}"] = 0
+            activity_ohe_idx = self.activity_to_ohe_idx.get(last_activity)
 
-        return pd.Series(features)
+            if activity_ohe_idx is not None:
+                out[self.activity_ohe_offset + activity_ohe_idx] = 1.0
+
+            # transition
+
+            if prefix_len >= 2:
+                prev_activity = activities[-2]
+
+                transition = f"{prev_activity}->{last_activity}"
+
+                transition_ohe_idx = self.transition_to_ohe_idx.get(transition)
+
+                if transition_ohe_idx is not None:
+                    out[self.transition_ohe_offset + transition_ohe_idx] = 1.0
+
+        return out

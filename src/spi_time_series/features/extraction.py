@@ -1,6 +1,7 @@
 import logging
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable
 
+import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
@@ -16,53 +17,87 @@ logger = logging.getLogger(__name__)
 
 
 def generate_feature_matrix(
-    samples: Iterator[TraceSample],
+    samples: Iterable[TraceSample],
     features: list[PrefixFeature],
     target_generator: TargetGenerator,
     col_idx_mapping: dict[str, int],
     num_cases: int | None = None,
 ) -> tuple[pd.DataFrame, pd.Series, list[str]]:
-    """
-    Convert TraceSamples into feature matrix + labels.
-    """
+
+    # ---------------------------------------------------------
+    # PRECOMPUTE FEATURE NAMES
+    # ---------------------------------------------------------
+
+    feature_names: list[str] = []
+
+    for feature in features:
+        feature_names.extend(
+            f"{feature.name()}__{name}" for name in feature.feature_names
+        )
+
+    n_features = len(feature_names)
+
+    # ---------------------------------------------------------
+    # STORAGE
+    # ---------------------------------------------------------
 
     rows = []
-    targets: list[str | float] = []
+    targets = []
 
     seen_cases = set()
+
     pbar = tqdm(total=num_cases, desc="Processing cases")
 
+    # ---------------------------------------------------------
+    # MAIN LOOP
+    # ---------------------------------------------------------
+
     for sample in samples:
+        data = sample.data
+
         for start_idx, end_idx in sample.prefix_indexes:
-            feature_row = {}
-            feature_input = sample.data[start_idx:end_idx]
+            prefix_data = data[start_idx:end_idx]
 
-            # evaluate all features
+            # preallocate row
+            row = np.empty(n_features, dtype=np.float32)
+            offset = 0
+
+            # evaluate features
             for feature in features:
-                # continue
-                out = feature(feature_input, col_idx_mapping)
+                vec = feature(
+                    prefix_data,
+                    col_idx_mapping,
+                )
+                n = len(vec)
+                row[offset : offset + n] = vec
+                offset += n
 
-                # prefix feature namespace isolation, prevents collisions between feature classes
-                prefixed = {f"{feature.name()}__{k}": v for k, v in out.items()}
-                feature_row.update(prefixed)
+            rows.append(row)
 
-            rows.append(feature_row)
             targets.append(
                 target_generator(
-                    trace=sample.data, start_idx=start_idx, end_idx=end_idx
+                    trace=data,
+                    start_idx=start_idx,
+                    end_idx=end_idx,
                 )
             )
 
-        # update progress bar
         if sample.case_id not in seen_cases:
             seen_cases.add(sample.case_id)
             pbar.update(1)
+
     pbar.close()
 
-    X = pd.DataFrame(rows)
-    y = pd.Series(targets)
+    # ---------------------------------------------------------
+    # FINALIZE
+    # ---------------------------------------------------------
 
-    feature_names = list(X.columns)
+    X = pd.DataFrame(
+        np.vstack(rows),
+        columns=feature_names,
+    )
+
+    y = pd.Series(targets)
 
     return X, y, feature_names
 
@@ -70,9 +105,17 @@ def generate_feature_matrix(
 def extract_features_builder(
     features: list[PrefixFeature],
     target_generator: TargetGenerator,
+    feature_kwargs: dict[str, dict] | None = None,
 ) -> Callable[[PreprocessedData], FeatureSet]:
+    if feature_kwargs is None:
+        feature_kwargs = {}
 
     def extract_features(data: PreprocessedData) -> FeatureSet:
+        # fit features on training data
+        for feature in features:
+            kwargs = feature_kwargs.get(feature.name(), {})
+            feature.fit(data.train_log, data.col_idx, **kwargs)
+
         X_train, y_train, feature_names = generate_feature_matrix(
             samples=data.train_log,
             features=features,

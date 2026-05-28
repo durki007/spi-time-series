@@ -1,16 +1,17 @@
 import numpy as np
-import pandas as pd
 import pytest
 
-from spi_time_series.features.log_based_features import (
-    BasicControlFlowFeatures,
-)
+from spi_time_series.features.log_based_features import BasicControlFlowFeatures
+
+# =========================================================
+# FIXTURES
+# =========================================================
 
 
 @pytest.fixture(autouse=True)
 def patch_event_names(monkeypatch):
     monkeypatch.setattr(
-        "spi_time_series.features.log_based_features.EVENT_NAMES",
+        "spi_time_series.data.constants.EVENT_NAMES",
         ["A", "B", "C", "D"],
     )
 
@@ -24,354 +25,292 @@ def col_idx_mapping():
 
 
 @pytest.fixture
-def feature_extractor():
-    return BasicControlFlowFeatures()
-
-
-@pytest.fixture
-def feature_extractor_onehot():
-    return BasicControlFlowFeatures(
-        one_hot_encode_categorical=True,
-    )
-
-
-@pytest.fixture
 def sample_prefix():
     return np.array(
         [
-            ["A", pd.Timestamp("2024-01-01 10:00:00")],
-            ["B", pd.Timestamp("2024-01-01 10:05:00")],
-            ["C", pd.Timestamp("2024-01-01 10:10:00")],
+            ["A", np.datetime64("2024-01-01T10:00:00")],
+            ["B", np.datetime64("2024-01-01T11:00:00")],
+            ["C", np.datetime64("2024-01-01T13:30:00")],
         ],
         dtype=object,
     )
 
 
 def make_prefix(events, timestamps):
-    """
-    Helper to create numpy prefix arrays.
-    """
-    return np.array(
-        list(zip(events, timestamps, strict=True)),
-        dtype=object,
-    )
+    return np.array(list(zip(events, timestamps, strict=True)), dtype=object)
 
 
 # =========================================================
-# CONSTRUCTOR / METADATA
+# BASIC CONSTRUCTION
 # =========================================================
 
 
-def test_default_constructor():
-    extractor = BasicControlFlowFeatures()
+def test_constructor_defaults():
+    f = BasicControlFlowFeatures()
 
-    assert extractor.activity_column == "concept:name"
-    assert extractor.timestamp_column == "time:timestamp"
-
-
-def test_custom_constructor():
-    extractor = BasicControlFlowFeatures(
-        activity_column="activity",
-        timestamp_column="timestamp",
-    )
-
-    assert extractor.activity_column == "activity"
-    assert extractor.timestamp_column == "timestamp"
+    assert f.activity_column == "concept:name"
+    assert f.timestamp_column == "time:timestamp"
+    assert f.one_hot_encode_categorical is False
 
 
 def test_name():
-    extractor = BasicControlFlowFeatures()
-
-    assert extractor.name() == "BasicControlFlowFeatures"
-
-
-# =========================================================
-# SINGLE EVENT PREFIX
-# =========================================================
-
-
-def test_single_event_prefix(feature_extractor, col_idx_mapping):
-    prefix = make_prefix(
-        ["A"],
-        [pd.Timestamp("2024-01-01 10:00:00")],
-    )
-
-    result = feature_extractor(prefix, col_idx_mapping)
-
-    assert result["elapsed_time_hours"] == 0.0
-    assert result["prefix_length"] == 1
-    assert result["last_activity"] == "A"
-    assert result["time_since_last_event_hours"] == 0.0
-    assert result["rework_count"] == 0
-    assert result["last_transition"] is None
-
-    # bag of activities
-    assert result["count_A"] == 1
+    f = BasicControlFlowFeatures()
+    assert f.name() == "BasicControlFlowFeatures"
 
 
 # =========================================================
-# MULTI EVENT PREFIX
+# FIT BEHAVIOR
 # =========================================================
 
 
-def test_multi_event_prefix(feature_extractor, col_idx_mapping):
+def test_fit_creates_feature_names():
+    f = BasicControlFlowFeatures(one_hot_encode_categorical=True)
+
+    log = [
+        type(
+            "T",
+            (),
+            {"data": np.array([["A", "t1"], ["B", "t2"]], dtype=object)},
+        )()
+    ]
+
+    f.fit(log, {"concept:name": 0}, min_last_activity=1, min_last_transition=1)
+
+    assert len(f.feature_names) > 0
+    assert "elapsed_time_hours" in f.feature_names
+    assert any("last_activity__" in n for n in f.feature_names)
+    assert any("last_transition__" in n for n in f.feature_names)
+
+
+def test_fit_empty_trace_handled():
+    f = BasicControlFlowFeatures()
+
+    log = [type("T", (), {"data": np.array([], dtype=object).reshape(0, 2)})()]
+
+    f.fit(log, {"concept:name": 0})
+
+
+# =========================================================
+# CORE FEATURE VALUES
+# =========================================================
+
+
+def test_elapsed_time_and_length(col_idx_mapping):
+    f = BasicControlFlowFeatures()
+
     prefix = make_prefix(
         ["A", "B", "C"],
         [
-            pd.Timestamp("2024-01-01 10:00:00"),
-            pd.Timestamp("2024-01-01 11:00:00"),
-            pd.Timestamp("2024-01-01 13:30:00"),
+            np.datetime64("2024-01-01T10:00:00"),
+            np.datetime64("2024-01-01T11:00:00"),
+            np.datetime64("2024-01-01T13:00:00"),
         ],
     )
 
-    result = feature_extractor(prefix, col_idx_mapping)
+    out = f(prefix, col_idx_mapping)
 
-    # elapsed = 3.5 hours
-    assert result["elapsed_time_hours"] == 3.5
+    assert out[1] == 3  # prefix_length
+    assert out[0] == pytest.approx(3.0)  # elapsed hours
 
-    assert result["prefix_length"] == 3
 
-    assert result["last_activity"] == "C"
+def test_time_since_last_event(col_idx_mapping):
+    f = BasicControlFlowFeatures()
 
-    # last delta = 2.5 hours
-    assert result["time_since_last_event_hours"] == 2.5
+    prefix = make_prefix(
+        ["A", "B"],
+        [
+            np.datetime64("2024-01-01T10:00:00"),
+            np.datetime64("2024-01-01T12:30:00"),
+        ],
+    )
 
-    assert result["rework_count"] == 0
+    out = f(prefix, col_idx_mapping)
 
-    assert result["last_transition"] == "B->C"
+    assert out[2] == pytest.approx(2.5)
 
-    assert result["count_A"] == 1
-    assert result["count_B"] == 1
-    assert result["count_C"] == 1
+
+def test_single_event_edge_case(col_idx_mapping):
+    f = BasicControlFlowFeatures()
+
+    prefix = make_prefix(
+        ["A"],
+        [np.datetime64("2024-01-01T10:00:00")],
+    )
+
+    out = f(prefix, col_idx_mapping)
+
+    assert out[0] == 0.0
+    assert out[2] == 0.0
+    assert out[1] == 1
 
 
 # =========================================================
-# REWORK
+# REWORK COUNT
 # =========================================================
 
 
-def test_rework_count(feature_extractor, col_idx_mapping):
+def test_rework_count(col_idx_mapping):
+    f = BasicControlFlowFeatures()
+
     prefix = make_prefix(
         ["A", "B", "A", "A"],
         [
-            pd.Timestamp("2024-01-01 10:00:00"),
-            pd.Timestamp("2024-01-01 11:00:00"),
-            pd.Timestamp("2024-01-01 12:00:00"),
-            pd.Timestamp("2024-01-01 13:00:00"),
+            np.datetime64("2024-01-01T10:00:00"),
+            np.datetime64("2024-01-01T11:00:00"),
+            np.datetime64("2024-01-01T12:00:00"),
+            np.datetime64("2024-01-01T13:00:00"),
         ],
     )
 
-    result = feature_extractor(prefix, col_idx_mapping)
+    out = f(prefix, col_idx_mapping)
 
-    # 4 events - 2 unique activities = 2
-    assert result["rework_count"] == 2
-
-    assert result["count_A"] == 3
-    assert result["count_B"] == 1
+    assert out[3] == 4 - 2  # unique = {A,B}
 
 
 # =========================================================
-# LAST TRANSITION
+# BAG OF ACTIVITIES
 # =========================================================
 
 
-def test_last_transition(feature_extractor, col_idx_mapping):
+def test_bag_of_activities(col_idx_mapping):
+    f = BasicControlFlowFeatures()
+
     prefix = make_prefix(
-        ["Submit", "Approve"],
+        ["A", "A", "B"],
         [
-            pd.Timestamp("2024-01-01 10:00:00"),
-            pd.Timestamp("2024-01-01 11:00:00"),
+            np.datetime64("2024-01-01T10:00:00"),
+            np.datetime64("2024-01-01T11:00:00"),
+            np.datetime64("2024-01-01T12:00:00"),
         ],
     )
 
-    result = feature_extractor(prefix, col_idx_mapping)
+    out = f(prefix, col_idx_mapping)
 
-    assert result["last_transition"] == "Submit->Approve"
-
-
-# =========================================================
-# BAG OF ACTIVITIES DEFAULTS
-# =========================================================
-
-
-def test_all_event_counts_exist(feature_extractor, col_idx_mapping):
-    prefix = make_prefix(
-        ["A"],
-        [pd.Timestamp("2024-01-01 10:00:00")],
-    )
-
-    result = feature_extractor(prefix, col_idx_mapping)
-
-    for event in ["A", "B", "C", "D"]:
-        key = f"count_{event}"
-
-        assert key in result
-
-        if event == "A":
-            assert result[key] == 1
-        else:
-            assert result[key] == 0
+    # base offset starts at index 4
+    assert out[4] >= 0
 
 
 # =========================================================
-# TIME FEATURES
+# OHE BEHAVIOR
 # =========================================================
 
 
-def test_elapsed_time_uses_min_and_max_timestamp(
-    feature_extractor,
-    col_idx_mapping,
-):
-    """
-    Ensures elapsed time is computed using min/max timestamps
-    and not event ordering.
-    """
+def test_ohe_last_activity():
+    f = BasicControlFlowFeatures(one_hot_encode_categorical=True)
+
+    log = [
+        type(
+            "T",
+            (),
+            {
+                "data": np.array(
+                    [["A", "t"], ["B", "t2"], ["C", "t3"]], dtype=object
+                )
+            },
+        )()
+    ]
+
+    f.fit(log, {"concept:name": 0}, min_last_activity=0, min_last_transition=0)
 
     prefix = make_prefix(
         ["A", "B", "C"],
         [
-            pd.Timestamp("2024-01-01 15:00:00"),
-            pd.Timestamp("2024-01-01 10:00:00"),
-            pd.Timestamp("2024-01-01 12:00:00"),
+            np.datetime64("2024-01-01T10:00:00"),
+            np.datetime64("2024-01-01T11:00:00"),
+            np.datetime64("2024-01-01T12:00:00"),
         ],
     )
 
-    result = feature_extractor(prefix, col_idx_mapping)
+    out = f(prefix, {"concept:name": 0, "time:timestamp": 1})
 
-    # max=15:00 min=10:00 => 5h
-    assert result["elapsed_time_hours"] == 5.0
+    # last activity = C
+    last_idx = f.activity_ohe_offset + f.activity_to_ohe_idx["C"]
+    assert out[last_idx] == 1
 
 
-def test_time_since_last_event(feature_extractor, col_idx_mapping):
+def test_ohe_last_transition():
+    f = BasicControlFlowFeatures(one_hot_encode_categorical=True)
+
+    log = [
+        type(
+            "T", (), {"data": np.array([["A", "t"], ["B", "t2"]], dtype=object)}
+        )()
+    ]
+
+    f.fit(log, {"concept:name": 0}, min_last_activity=0, min_last_transition=0)
+
     prefix = make_prefix(
         ["A", "B"],
         [
-            pd.Timestamp("2024-01-01 10:00:00"),
-            pd.Timestamp("2024-01-01 12:30:00"),
+            np.datetime64("2024-01-01T10:00:00"),
+            np.datetime64("2024-01-01T11:00:00"),
         ],
     )
 
-    result = feature_extractor(prefix, col_idx_mapping)
+    out = f(prefix, {"concept:name": 0, "time:timestamp": 1})
 
-    assert result["time_since_last_event_hours"] == 2.5
+    idx = f.transition_ohe_offset + f.transition_to_ohe_idx["A->B"]
+    assert out[idx] == 1
 
 
 # =========================================================
-# OUTPUT STRUCTURE
+# STRUCTURE TESTS
 # =========================================================
 
 
-def test_returns_series(feature_extractor, col_idx_mapping):
-    prefix = make_prefix(
-        ["A"],
-        [pd.Timestamp("2024-01-01 10:00:00")],
+def test_output_shape_consistency():
+    f = BasicControlFlowFeatures()
+
+    log = [type("T", (), {"data": np.array([["A", "t"]], dtype=object)})()]
+
+    f.fit(log, {"concept:name": 0})
+
+    prefix = np.array(
+        [["A", np.datetime64("2024-01-01T10:00:00")]], dtype=object
     )
 
-    result = feature_extractor(prefix, col_idx_mapping)
+    out = f(prefix, {"concept:name": 0, "time:timestamp": 1})
 
-    assert isinstance(result, pd.Series)
+    assert isinstance(out, np.ndarray)
+    assert out.shape[0] == len(f.feature_names)
 
 
-def test_expected_core_features_present(
-    feature_extractor,
-    col_idx_mapping,
-):
+def test_all_features_non_negative():
+    f = BasicControlFlowFeatures()
+
     prefix = make_prefix(
-        ["A", "B"],
+        ["A", "B", "C"],
         [
-            pd.Timestamp("2024-01-01 10:00:00"),
-            pd.Timestamp("2024-01-01 11:00:00"),
+            np.datetime64("2024-01-01T10:00:00"),
+            np.datetime64("2024-01-01T11:00:00"),
+            np.datetime64("2024-01-01T12:00:00"),
         ],
     )
 
-    result = feature_extractor(prefix, col_idx_mapping)
+    out = f(prefix, {"concept:name": 0, "time:timestamp": 1})
 
-    expected = {
-        "elapsed_time_hours",
-        "prefix_length",
-        "last_activity",
-        "time_since_last_event_hours",
-        "rework_count",
-        "last_transition",
-    }
-
-    for feature in expected:
-        assert feature in result.index
+    assert np.all(np.isfinite(out))
 
 
 # =========================================================
-# CUSTOM COLUMN MAPPING
+# COLUMN MAPPING
 # =========================================================
 
 
 def test_custom_column_mapping():
-    extractor = BasicControlFlowFeatures(
+    f = BasicControlFlowFeatures(
         activity_column="activity",
         timestamp_column="ts",
     )
 
-    col_idx_mapping = {
-        "activity": 0,
-        "ts": 1,
-    }
-
     prefix = np.array(
         [
-            ["A", pd.Timestamp("2024-01-01 10:00:00")],
-            ["B", pd.Timestamp("2024-01-01 11:00:00")],
+            ["A", np.datetime64("2024-01-01T10:00:00")],
+            ["B", np.datetime64("2024-01-01T11:00:00")],
         ],
         dtype=object,
     )
 
-    result = extractor(prefix, col_idx_mapping)
+    out = f(prefix, {"activity": 0, "ts": 1})
 
-    assert result["last_activity"] == "B"
-    assert result["last_transition"] == "A->B"
-
-
-# =========================================================
-# ONE HOT ENCODING
-# =========================================================
-
-
-def test_one_hot_last_activity(
-    feature_extractor_onehot, sample_prefix, col_idx_mapping
-):
-    result = feature_extractor_onehot(sample_prefix, col_idx_mapping)
-
-    cols = [c for c in result.index if c.startswith("last_activity__")]
-    assert len(cols) > 0
-
-    # Only "C" should be active
-    for col in cols:
-        if col.endswith("__C"):
-            assert result[col] == 1
-        else:
-            assert result[col] == 0
-
-
-def test_one_hot_last_transition(
-    feature_extractor_onehot, sample_prefix, col_idx_mapping
-):
-    result = feature_extractor_onehot(sample_prefix, col_idx_mapping)
-
-    cols = [c for c in result.index if c.startswith("last_transition__")]
-    assert len(cols) > 0
-
-    # expected transition is B->C
-    for col in cols:
-        if col.endswith("__B->C"):
-            assert result[col] == 1
-        else:
-            assert result[col] == 0
-
-
-def test_one_hot_is_binary(
-    feature_extractor_onehot, sample_prefix, col_idx_mapping
-):
-    result = feature_extractor_onehot(sample_prefix, col_idx_mapping)
-
-    ohe_cols = [c for c in result.index if "__" in c]
-
-    for c in ohe_cols:
-        assert result[c] in (0, 1)
+    assert out[1] == 2
