@@ -79,6 +79,7 @@ def generate_feature_matrix(
                     trace=data,
                     start_idx=start_idx,
                     end_idx=end_idx,
+                    col_idx_mapping=col_idx_mapping,
                 )
             )
 

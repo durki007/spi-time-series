@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import pm4py
 
+from spi_time_series.data.constants import OUTCOME_EVENTS
 from spi_time_series.data.schemas import (
     PreprocessedData,
     RawData,
@@ -17,12 +18,14 @@ logger = logging.getLogger(__name__)
 
 def clean_event_log(
     df: pd.DataFrame,
+    filter_valid_outcomes: bool = False,
     valid_end_activities: list[str] | None = None,
     top_k_variants: int | None = None,
 ) -> pd.DataFrame:
     """
     Clean the event log dataframe by:
     - Formatting it for PM4Py processing.
+    - Optionally filtering traces that don't contain at least one OUTCOME event (-> incomplete case)
     - Optionally filtering to the top K variants.
     - Optionally filtering for valid end activities.
     - Sorting events by case ID and timestamp.
@@ -35,6 +38,19 @@ def clean_event_log(
         activity_key="concept:name",
         timestamp_key="time:timestamp",
     )
+
+    # Filter out cases, that don't have a outcome event
+    if filter_valid_outcomes:
+        logger.info(
+            f"Filtering cases without any of {OUTCOME_EVENTS}. They are likely incomplete"
+        )
+        cases_with_outcome = df.groupby("case:concept:name")[
+            "concept:name"
+        ].apply(lambda x: any(act in set(x) for act in OUTCOME_EVENTS))
+
+        valid_cases = cases_with_outcome[cases_with_outcome].index
+
+        df = df[df["case:concept:name"].isin(valid_cases)]
 
     # Optionally filter to the top K variants to focus on the most common process paths.
     if top_k_variants:

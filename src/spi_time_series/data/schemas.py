@@ -72,7 +72,11 @@ class WindowGenerator(Protocol):
 
 class TargetGenerator(Protocol):
     def __call__(
-        self, trace: np.ndarray, start_idx: int, end_idx: int
+        self,
+        trace: np.ndarray,
+        start_idx: int,
+        end_idx: int,
+        col_idx_mapping: dict[str, int],
     ) -> float | str: ...
 
 

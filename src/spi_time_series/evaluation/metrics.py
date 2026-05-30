@@ -3,11 +3,14 @@ import warnings
 
 import pandas as pd
 from sklearn.metrics import (
+    accuracy_score,
+    f1_score,
     mean_absolute_error,
     r2_score,
     root_mean_squared_error,
 )
 
+from spi_time_series.config import TaskType
 from spi_time_series.data.schemas import (
     EvaluationReport,
     FeatureSet,
@@ -19,7 +22,9 @@ logger = logging.getLogger(__name__)
 _PREFIX_LENGTH_COL = "BasicControlFlowFeatures__prefix_length"
 
 
-def evaluate(artifact: ModelArtifact, features: FeatureSet) -> EvaluationReport:
+def evaluate(
+    artifact: ModelArtifact, features: FeatureSet, target_type: TaskType
+) -> EvaluationReport:
     """Compute per-model, per-prefix-length regression metrics on the test set.
 
     Metrics: MAE, RMSE, R².
@@ -52,11 +57,39 @@ def evaluate(artifact: ModelArtifact, features: FeatureSet) -> EvaluationReport:
 
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                model_metrics[int(pl_val)] = {
-                    "mae": float(mean_absolute_error(y_true_g, y_pred_g)),
-                    "rmse": float(root_mean_squared_error(y_true_g, y_pred_g)),
-                    "r2": float(r2_score(y_true_g, y_pred_g)),
-                }
+
+                if target_type == "regression":
+                    model_metrics[int(pl_val)] = {
+                        "mae": float(mean_absolute_error(y_true_g, y_pred_g)),
+                        "rmse": float(
+                            root_mean_squared_error(y_true_g, y_pred_g)
+                        ),
+                        "r2": float(r2_score(y_true_g, y_pred_g)),
+                    }
+
+                elif target_type == "classification":
+                    model_metrics[int(pl_val)] = {
+                        "accuracy": float(accuracy_score(y_true_g, y_pred_g)),
+                        "f1_macro": float(
+                            f1_score(
+                                y_true_g,
+                                y_pred_g,
+                                average="macro",
+                                zero_division=0,
+                            )
+                        ),
+                        "f1_weighted": float(
+                            f1_score(
+                                y_true_g,
+                                y_pred_g,
+                                average="weighted",
+                                zero_division=0,
+                            )
+                        ),
+                    }
+
+                else:
+                    raise ValueError(f"Unknown target_type: {target_type}")
 
         all_metrics[model_name] = model_metrics
         logger.info(

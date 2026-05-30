@@ -42,5 +42,12 @@ VALID_END_ACTIVITIES = [
     "A_Denied",
 ]
 
+# These events define the three possible outcomes for traces. We know no trace contains more than one of these.
+OUTCOME_EVENTS = [
+    "A_Pending",
+    "A_Denied",
+    "A_Cancelled",
+]
+
 # Number of top variants to keep when filtering infrequent variants in the event log.
 TOP_K_VARIANTS = 100
