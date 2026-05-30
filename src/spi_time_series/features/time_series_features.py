@@ -67,9 +67,8 @@ class ActiveCaseCountFeature:
     def __call__(
         self, prefix: np.ndarray, col_idx_mapping: dict[str, int]
     ) -> np.ndarray:
-        ts = pd.to_datetime(
-            prefix[-1, col_idx_mapping["time:timestamp"]]
-        ).to_datetime64()
+        ts = pd.to_datetime(prefix[-1, col_idx_mapping["time:timestamp"]])
+
         idx = np.searchsorted(self._ts_array, ts, side="right") - 1
         if idx < 0:
             idx = 0

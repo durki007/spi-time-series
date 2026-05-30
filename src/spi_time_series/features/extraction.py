@@ -117,6 +117,7 @@ def extract_features_builder(
                 **feature_kwargs.get(feature.name(), {}),
                 "cleaned_log": data.cleaned_log,
             }
+            logger.info("Fitting %s", feature.name())
             feature.fit(data.train_log, data.col_idx, **kwargs)
 
         X_train, y_train, feature_names = generate_feature_matrix(
