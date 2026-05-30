@@ -15,11 +15,16 @@ import yaml
 
 from spi_time_series.config.loader import save_config
 from spi_time_series.config.schema import RunConfig
-from spi_time_series.data.schemas import EvaluationReport, ModelArtifact
+from spi_time_series.data.schemas import (
+    EvaluationReport,
+    ModelArtifact,
+    PrefixFeature,
+)
 from spi_time_series.data.types import FeatureExtractor
 from spi_time_series.evaluation.metrics import evaluate
 from spi_time_series.features.extraction import extract_features_builder
 from spi_time_series.features.log_based_features import BasicControlFlowFeatures
+from spi_time_series.features.time_series_features import ActiveCaseCountFeature
 from spi_time_series.pipeline import PipelineBuilder
 
 logger = logging.getLogger(__name__)
@@ -123,13 +128,20 @@ def _apply_overrides(raw: dict, overrides: list[str]) -> dict:
 def _build_default_feature_extractor(config: RunConfig) -> FeatureExtractor:
     """Build a default feature extractor for CLI use.
 
-    Uses BasicControlFlowFeatures (required by evaluate()) with a generic target:
+    Instantiates features listed in config.features.enabled_features with a generic target:
     - regression:     remaining event count — float(len(trace) - end_idx)
     - classification: binary flag for whether more events follow the prefix
     """
-    features = BasicControlFlowFeatures(
-        one_hot_encode_categorical=config.features.one_hot_encode_categorical
-    )
+    feature_list: list[PrefixFeature] = []
+    for name in config.features.enabled_features:
+        if name == "BasicControlFlowFeatures":
+            feature_list.append(
+                BasicControlFlowFeatures(
+                    one_hot_encode_categorical=config.features.one_hot_encode_categorical
+                )
+            )
+        elif name == "ActiveCaseCountFeature":
+            feature_list.append(ActiveCaseCountFeature())
 
     if config.task == "regression":
 
@@ -141,7 +153,7 @@ def _build_default_feature_extractor(config: RunConfig) -> FeatureExtractor:
         def _target(trace, start_idx: int, end_idx: int) -> float:
             return float(end_idx < len(trace))
 
-    return extract_features_builder([features], _target)
+    return extract_features_builder(feature_list, _target)
 
 
 # ---------------------------------------------------------------------------

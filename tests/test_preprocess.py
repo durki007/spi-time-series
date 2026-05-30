@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 
 from spi_time_series.data.schemas import RawData, TraceSample
+from spi_time_series.features.time_series_features import preprocess_time_series
 from spi_time_series.preprocessing.preprocess import (
     _build_trace_samples,
     preprocess,
@@ -144,3 +145,35 @@ def test_preprocess_pipeline(raw):
     # structure checks
     assert isinstance(train[0], TraceSample)
     assert isinstance(test[0], TraceSample)
+
+
+def test_preprocess_time_series_builds_hourly_grid():
+    event_log_df = pd.DataFrame(
+        {
+            "case_id": ["A", "B"],
+            "start_time": [
+                "2023-01-01 10:15:00+00:00",
+                "2023-01-01 12:00:00+00:00",
+            ],
+            "end_time": [
+                "2023-01-01 13:45:00+00:00",
+                "2023-01-01 15:00:00+00:00",
+            ],
+        }
+    )
+
+    result = preprocess_time_series(event_log_df)
+
+    expected_timestamps = pd.date_range(
+        start=pd.Timestamp("2023-01-01 10:15:00+00:00"),
+        end=pd.Timestamp("2023-01-01 15:00:00+00:00"),
+        freq="1h",
+    )
+
+    expected_active_cases = [1, 1, 2, 2, 1]
+
+    assert result.columns.tolist() == ["timestamp", "active_cases"]
+    assert result["timestamp"].equals(
+        expected_timestamps.to_series().reset_index(drop=True)
+    )
+    assert result["active_cases"].tolist() == expected_active_cases

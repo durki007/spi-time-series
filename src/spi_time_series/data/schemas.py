@@ -34,6 +34,7 @@ class PreprocessedData:
     test_log: Iterable[TraceSample]
     num_test_cases: int
     col_idx: dict[str, int]  # mapping from column name to its index
+    cleaned_log: EventLog = None  # type: ignore[assignment]
 
 
 @dataclass(frozen=True)
@@ -89,5 +90,4 @@ class PrefixFeature(Protocol):
 
     def name(self) -> str: ...
 
-    @property
-    def feature_names(self) -> list[str]: ...
+    feature_names: list[str]

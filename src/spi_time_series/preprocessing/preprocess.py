@@ -54,29 +54,6 @@ def clean_event_log(
     return df
 
 
-def clean_data(
-    raw: RawData,
-    valid_ends: list[str] | None = None,
-    top_k_variants: int | None = None,
-) -> RawData:
-    """
-    Clean the raw event log data by applying the clean_event_log function.
-    Args:
-        raw:
-            Raw event log input.
-
-        valid_ends:
-            Optional list of valid end activities to filter the event log.
-             If None, no filtering based on end activities is applied.
-    """
-    cleaned_log = clean_event_log(
-        raw.event_log,
-        valid_end_activities=valid_ends,
-        top_k_variants=top_k_variants,
-    )
-    return RawData(event_log=cleaned_log)
-
-
 def filter_dev_cases(
     df: pd.DataFrame, dev_quantile: float = 0.1
 ) -> pd.DataFrame:
@@ -102,12 +79,9 @@ def split_data(
     """
     # Determine the cutoff time based on the specified quantile of case start times.
     case_starts = df.groupby("case:concept:name")["time:timestamp"].min()
+    case_ends = df.groupby("case:concept:name")["time:timestamp"].max()
     cutoff_time = case_starts.quantile(split_quantile)
     logger.info(f"Splitting cases at cutoff time: {cutoff_time}")
-
-    # Compute the start and end times for each case to determine their relation to the cutoff.
-    case_ends = df.groupby("case:concept:name")["time:timestamp"].max()
-    case_starts = df.groupby("case:concept:name")["time:timestamp"].min()
 
     # Assign cases to train or test based on their start and end times relative to the cutoff.
     train_ids = case_ends[case_ends < cutoff_time].index
@@ -213,8 +187,9 @@ def preprocess(
             Structured dataset containing train and test prefix streams
             ready for feature extraction or modeling.
     """
-    cleaned_data = clean_data(raw)
-    train_df, test_df = split_data(cleaned_data.event_log)
+    cleaned_df = clean_event_log(raw.event_log)
+
+    train_df, test_df = split_data(cleaned_df)
 
     col_idx = {c: i for i, c in enumerate(train_df.columns)}
 

@@ -9,7 +9,6 @@ data:
     - "A_Denied"
   top_k_variants: null
   split_quantile: 0.8
-  dev_mode: true
 
 prefix:
   min_length: 3
@@ -19,6 +18,7 @@ features:
   one_hot_encode_categorical: false
   enabled_features:
     - BasicControlFlowFeatures
+    - ActiveCaseCountFeature
 
 search:
   n_iter: 10

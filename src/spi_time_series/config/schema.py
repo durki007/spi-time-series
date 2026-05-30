@@ -41,6 +41,11 @@ _CLASSIFICATION_TYPES = {
     "HistGradientBoostingClassifier",
 }
 
+_FEATURES = {
+    "BasicControlFlowFeatures",
+    "ActiveCaseCountFeature",
+}
+
 
 class ModelConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
@@ -121,6 +126,24 @@ class FeaturesConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     one_hot_encode_categorical: bool = False
+    enabled_features: list[str] = Field(
+        default_factory=lambda: ["BasicControlFlowFeatures"]
+    )
+
+    @field_validator("enabled_features")
+    @classmethod
+    def features_in_allowlist(cls, v: list[str]) -> list[str]:
+        if not v:
+            raise ValueError(
+                "enabled_features must contain at least one feature."
+            )
+        for name in v:
+            if name not in _FEATURES:
+                allowed = sorted(_FEATURES)
+                raise ValueError(
+                    f"'{name}' is not a recognized feature. Valid choices: {allowed}"
+                )
+        return v
 
 
 class SearchConfig(BaseModel):

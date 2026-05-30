@@ -17,6 +17,8 @@ prefix:
 
 features:
   one_hot_encode_categorical: false
+  enabled_features:
+    - BasicControlFlowFeatures
 
 search:
   n_iter: 10
