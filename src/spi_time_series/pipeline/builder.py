@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Self, get_args
 
 if TYPE_CHECKING:
     from spi_time_series.config.schema import RunConfig
 
 from sklearn.base import BaseEstimator
 
+from spi_time_series.config import TaskType
 from spi_time_series.data import Dataset
 from spi_time_series.data.types import (
     Evaluator,
@@ -29,6 +30,7 @@ class PipelineBuilder:
     """
 
     def __init__(self) -> None:
+        self._task: TaskType = "regression"
         self._dataset: Dataset | None = None
         self._preprocessor: Preprocessor | None = None
         self._splitter: Splitter | None = None
@@ -37,6 +39,13 @@ class PipelineBuilder:
         self._param_grids: dict[str, dict[str, list]] = {}
         self._evaluators: list[Evaluator] = []
         self._reporters: list[Reporter] = []
+
+    def with_task(self, task: TaskType):
+        valid_tasks = get_args(TaskType)
+        if task not in valid_tasks:
+            raise ValueError(f"Invalid task: {task}. Must be in {valid_tasks}")
+        self._task = task
+        return self
 
     def with_dataset(self, dataset: Dataset) -> Self:
         """Set the dataset that supplies the raw event log."""
@@ -108,6 +117,7 @@ class PipelineBuilder:
         builder = cls()
 
         builder.with_dataset(Dataset())
+        builder.with_task(config.task)
 
         valid_ends = config.data.valid_end_activities or None
         top_k = config.data.top_k_variants
@@ -115,6 +125,7 @@ class PipelineBuilder:
         def _preprocessor(raw: RawData):
             cleaned_log = clean_event_log(
                 raw.event_log,
+                filter_valid_outcomes=config.task == "classification",
                 valid_end_activities=valid_ends,
                 top_k_variants=top_k,
             )
@@ -173,6 +184,7 @@ class PipelineBuilder:
             )
 
         return Pipeline(
+            task=self._task,
             dataset=self._dataset,  # type: ignore[arg-type]
             preprocessor=self._preprocessor,  # type: ignore[arg-type]
             splitter=self._splitter,  # type: ignore[arg-type]

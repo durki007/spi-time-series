@@ -7,6 +7,7 @@ from typing import Any
 import joblib
 from sklearn.base import BaseEstimator
 
+from spi_time_series.config import TaskType
 from spi_time_series.config.schema import SearchConfig
 from spi_time_series.data import Dataset
 from spi_time_series.data.schemas import (
@@ -64,6 +65,7 @@ class Pipeline:
         reporters: Produce output artefacts (plots, CSVs, MLflow runs, …).
     """
 
+    task: TaskType
     dataset: Dataset
     preprocessor: Preprocessor
     splitter: Splitter
@@ -309,7 +311,10 @@ class Pipeline:
         assert self._artifact is not None
         assert self._features is not None
         logger.info("Evaluating %d model(s)…", len(self._artifact.models))
-        reports = [e(self._artifact, self._features) for e in self.evaluators]
+        reports = [
+            e(self._artifact, self._features, self.task)
+            for e in self.evaluators
+        ]
         evaluation = _merge_evaluations(reports)
 
         for reporter in self.reporters:
