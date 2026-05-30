@@ -24,6 +24,10 @@ from spi_time_series.data.types import FeatureExtractor
 from spi_time_series.evaluation.metrics import evaluate
 from spi_time_series.features.extraction import extract_features_builder
 from spi_time_series.features.log_based_features import BasicControlFlowFeatures
+from spi_time_series.features.targets import (
+    outcome_target,
+    remaining_time_target,
+)
 from spi_time_series.features.time_series_features import ActiveCaseCountFeature
 from spi_time_series.pipeline import PipelineBuilder
 
@@ -144,16 +148,9 @@ def _build_default_feature_extractor(config: RunConfig) -> FeatureExtractor:
             feature_list.append(ActiveCaseCountFeature())
 
     if config.task == "regression":
-
-        def _target(trace, start_idx: int, end_idx: int) -> float:
-            return float(len(trace) - end_idx)
-
+        return extract_features_builder(feature_list, remaining_time_target)
     else:
-
-        def _target(trace, start_idx: int, end_idx: int) -> float:
-            return float(end_idx < len(trace))
-
-    return extract_features_builder(feature_list, _target)
+        return extract_features_builder(feature_list, outcome_target)
 
 
 # ---------------------------------------------------------------------------
