@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.decomposition import PCA
 from sklearn.linear_model import Ridge
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.pipeline import Pipeline as SklearnPipeline
@@ -213,4 +214,94 @@ def test_train_with_mixed_columns_does_not_crash():
     artifact = train(fs, {"ridge": Ridge()})
     preds = artifact.models["ridge"].predict(X)
     assert preds.shape == (N,)
+    assert np.all(np.isfinite(preds))
+
+
+# ---------------------------------------------------------------------------
+# PCA
+# ---------------------------------------------------------------------------
+
+
+def test_train_adds_pca_step_when_requested(numeric_feature_set, simple_models):
+    artifact = train(
+        numeric_feature_set,
+        simple_models,
+        pca_keep_percentage=0.95,
+    )
+
+    pipe = artifact.models["ridge"]
+
+    assert "pca" in pipe.named_steps
+    assert isinstance(pipe.named_steps["pca"], PCA)
+
+
+def test_train_does_not_add_pca_step_by_default(
+    numeric_feature_set, simple_models
+):
+    artifact = train(numeric_feature_set, simple_models)
+
+    pipe = artifact.models["ridge"]
+
+    assert "pca" not in pipe.named_steps
+
+
+def test_train_passes_keep_percentage_to_pca(
+    numeric_feature_set, simple_models
+):
+    artifact = train(
+        numeric_feature_set,
+        simple_models,
+        pca_keep_percentage=0.90,
+    )
+
+    pca = artifact.models["ridge"].named_steps["pca"]
+
+    assert pca.n_components == 0.90
+
+
+def test_pca_reduces_dimensionality():
+    rng = np.random.default_rng(42)
+
+    x1 = rng.normal(size=100)
+
+    X = pd.DataFrame(
+        {
+            "a": x1,
+            "b": x1 * 1.01,
+            "c": x1 * 0.99,
+            "d": rng.normal(size=100),
+        }
+    )
+
+    y = pd.Series(rng.normal(size=100), name="target")
+
+    fs = FeatureSet(
+        X_train=X,
+        X_test=X,
+        y_train=y,
+        y_test=y,
+        feature_names=list(X.columns),
+    )
+
+    artifact = train(
+        fs,
+        {"ridge": Ridge()},
+        pca_keep_percentage=0.95,
+    )
+
+    pca = artifact.models["ridge"].named_steps["pca"]
+
+    assert pca.n_components_ < X.shape[1]
+
+
+def test_pca_pipeline_can_predict(numeric_feature_set, simple_models):
+    artifact = train(
+        numeric_feature_set,
+        simple_models,
+        pca_keep_percentage=0.95,
+    )
+
+    preds = artifact.models["ridge"].predict(numeric_feature_set.X_test)
+
+    assert preds.shape == (len(numeric_feature_set.X_test),)
     assert np.all(np.isfinite(preds))
