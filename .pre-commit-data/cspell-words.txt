@@ -5,4 +5,7 @@ dayofweek
 artefacts
 serialisable
 capsys
-dayofweek
+importances
+xerr
+xlabel
+ylabel

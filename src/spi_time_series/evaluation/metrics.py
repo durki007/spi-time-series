@@ -99,7 +99,7 @@ def evaluate(
         )
 
     return EvaluationReport(
-        metrics=all_metrics,
+        prefix_metrics=all_metrics,
         model_names=model_names,
         prefix_lengths=prefix_lengths,
     )
