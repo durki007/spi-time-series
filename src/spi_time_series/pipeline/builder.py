@@ -35,6 +35,7 @@ class PipelineBuilder:
         self._preprocessor: Preprocessor | None = None
         self._splitter: Splitter | None = None
         self._feature_extractor: FeatureExtractor | None = None
+        self._pca_keep_percentage: float | None = None
         self._models: dict[str, BaseEstimator] = {}
         self._param_grids: dict[str, dict[str, list]] = {}
         self._evaluators: list[Evaluator] = []
@@ -50,6 +51,10 @@ class PipelineBuilder:
     def with_dataset(self, dataset: Dataset) -> Self:
         """Set the dataset that supplies the raw event log."""
         self._dataset = dataset
+        return self
+
+    def with_pca_keep_percentage(self, keep_percentage: float | None) -> Self:
+        self._pca_keep_percentage = keep_percentage
         return self
 
     def with_preprocessor(self, fn: Preprocessor) -> Self:
@@ -118,6 +123,11 @@ class PipelineBuilder:
 
         builder.with_dataset(Dataset())
         builder.with_task(config.task)
+        builder.with_pca_keep_percentage(
+            None
+            if not config.pca_config.active
+            else config.pca_config.keep_variability
+        )
 
         valid_ends = config.data.valid_end_activities or None
         top_k = config.data.top_k_variants
@@ -189,6 +199,7 @@ class PipelineBuilder:
             preprocessor=self._preprocessor,  # type: ignore[arg-type]
             splitter=self._splitter,  # type: ignore[arg-type]
             feature_extractor=self._feature_extractor,  # type: ignore[arg-type]
+            pca_keep_percentage=self._pca_keep_percentage,
             models=self._models,
             param_grids=self._param_grids,
             evaluators=self._evaluators,

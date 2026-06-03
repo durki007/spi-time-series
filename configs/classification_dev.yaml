@@ -26,6 +26,10 @@ search:
   random_state: 42
   search_sample_size: 50000
 
+pca_config:
+  active: true
+  keep_variability: 0.95
+
 models:
   logistic_regression:
     type: LogisticRegression

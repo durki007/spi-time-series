@@ -1,0 +1,83 @@
+data:
+  dev_mode: true
+  split_quantile: 0.8
+  top_k_variants: null
+  valid_end_activities:
+  - W_Validate application
+  - W_Call after offers
+  - W_Call incomplete files
+  - O_Cancelled
+  - A_Denied
+features:
+  enabled_features:
+  - BasicControlFlowFeatures
+  one_hot_encode_categorical: false
+models:
+  hist_gradient_boosting:
+    param_grid:
+      learning_rate:
+      - 0.05
+      - 0.1
+      - 0.2
+      max_depth:
+      - null
+      - 3
+      - 5
+      max_iter:
+      - 100
+      - 200
+    params:
+      random_state: 42
+    type: HistGradientBoostingClassifier
+  logistic_regression:
+    param_grid:
+      C:
+      - 0.0001
+      - 0.001
+      - 0.01
+      - 0.1
+      - 1.0
+      - 5.0
+      - 10.0
+      - 50.0
+      - 100.0
+      - 1000.0
+    params:
+      max_iter: 5000
+      random_state: 42
+      solver: saga
+    type: LogisticRegression
+  random_forest:
+    param_grid:
+      max_depth:
+      - null
+      - 10
+      - 20
+      max_features:
+      - sqrt
+      - 0.5
+      min_samples_split:
+      - 2
+      - 5
+      - 10
+      n_estimators:
+      - 50
+      - 100
+      - 150
+      - 200
+    params:
+      n_jobs: -1
+      random_state: 42
+    type: RandomForestClassifier
+pca_config:
+  active: true
+  keep_variability: 0.95
+prefix:
+  max_length: 10
+  min_length: 3
+search:
+  cv_folds: 3
+  n_iter: 10
+  random_state: 42
+  search_sample_size: 50000
+task: classification
