@@ -9,3 +9,6 @@ importances
 xerr
 xlabel
 ylabel
+cmap
+viridis
+cbar

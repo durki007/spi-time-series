@@ -92,7 +92,7 @@ def search_hyperparams(
             random_state=search_config.random_state,
             n_jobs=n_jobs,
             refit=False,
-            verbose=2,
+            verbose=0,
         )
         cv.fit(X_num, y_train)
 
@@ -122,7 +122,7 @@ def train(
     ):
         logger.info("Fitting '%s'…", name)
         if "verbose" in estimator.get_params():
-            estimator = clone(estimator).set_params(verbose=1)
+            estimator = clone(estimator).set_params(verbose=0)
         pipe = SklearnPipeline(
             steps=[
                 ("preprocessor", _build_numeric_preprocessor()),

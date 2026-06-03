@@ -246,9 +246,11 @@ def main(argv: list[str] | None = None) -> None:
         PipelineBuilder.from_config(config)
         .with_feature_extractor(_build_default_feature_extractor(config))
         .add_evaluator(evaluate)
-        .add_evaluator(evaluate_feature_importance)
         .add_reporter(_save_report)
+        .add_evaluator(evaluate_feature_importance)
         .add_reporter(report_feature_importance)
+        # .add_evaluator(evaluate_feature_importance_per_prefix) # slow
+        # .add_reporter(report_feature_importance_per_prefix) # slow
         .build()
     )
 
