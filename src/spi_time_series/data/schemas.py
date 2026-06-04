@@ -1,5 +1,5 @@
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 import numpy as np
@@ -61,9 +61,14 @@ class ModelArtifact:
 class EvaluationReport:
     """Evaluation metrics per model name and prefix length."""
 
-    metrics: dict[str, dict[int, dict[str, float]]]
-    model_names: list[str]
-    prefix_lengths: list[int]
+    # metrics per model per prefix
+    prefix_metrics: dict[str, dict[int, dict[str, float]]] = field(
+        default_factory=dict
+    )
+    # metrics per model
+    model_metrics: dict[str, dict[str, float]] = field(default_factory=dict)
+    model_names: list[str] = field(default_factory=list)
+    prefix_lengths: list[int] = field(default_factory=list)
 
 
 class WindowGenerator(Protocol):

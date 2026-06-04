@@ -33,12 +33,20 @@ def _merge_evaluations(reports: list[EvaluationReport]) -> EvaluationReport:
     """Deep-merge a list of evaluation reports into one."""
     if not reports:
         raise ValueError("No evaluators produced a report.")
-    merged = EvaluationReport(metrics={}, model_names=[], prefix_lengths=[])
+    merged = EvaluationReport(
+        prefix_metrics={}, model_metrics={}, model_names=[], prefix_lengths=[]
+    )
     for report in reports:
-        for model, by_prefix in report.metrics.items():
-            merged.metrics.setdefault(model, {})
+        for model, by_prefix in report.prefix_metrics.items():
+            merged.prefix_metrics.setdefault(model, {})
             for prefix, metrics in by_prefix.items():
-                merged.metrics[model].setdefault(prefix, {}).update(metrics)
+                merged.prefix_metrics[model].setdefault(prefix, {}).update(
+                    metrics
+                )
+        for model, by_metric in report.model_metrics.items():
+            merged.model_metrics.setdefault(model, {})
+            for metric, val in by_metric.items():
+                merged.model_metrics[model][metric] = val
         for name in report.model_names:
             if name not in merged.model_names:
                 merged.model_names.append(name)
