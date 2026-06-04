@@ -21,6 +21,10 @@ from spi_time_series.data.schemas import (
     PrefixFeature,
 )
 from spi_time_series.data.types import FeatureExtractor
+from spi_time_series.evaluation.feature_importance import (
+    evaluate_feature_importance,
+    report_feature_importance,
+)
 from spi_time_series.evaluation.metrics import evaluate
 from spi_time_series.features.extraction import extract_features_builder
 from spi_time_series.features.log_based_features import BasicControlFlowFeatures
@@ -169,7 +173,7 @@ def _save_report(
 
     rows = [
         {"model": model, "prefix_length": pl, **metrics}
-        for model, by_prefix in report.metrics.items()
+        for model, by_prefix in report.prefix_metrics.items()
         for pl, metrics in by_prefix.items()
     ]
     df = (
@@ -243,6 +247,10 @@ def main(argv: list[str] | None = None) -> None:
         .with_feature_extractor(_build_default_feature_extractor(config))
         .add_evaluator(evaluate)
         .add_reporter(_save_report)
+        .add_evaluator(evaluate_feature_importance)
+        .add_reporter(report_feature_importance)
+        # .add_evaluator(evaluate_feature_importance_per_prefix) # slow
+        # .add_reporter(report_feature_importance_per_prefix) # slow
         .build()
     )
 
