@@ -194,8 +194,6 @@ def preprocess_time_series(event_log_df: pd.DataFrame) -> pd.DataFrame:
         start=min_start_time, end=max_end_time, freq="1h"
     )
 
-    # --- Vectorized event-based cumulative sum ---
-    # Step 1: Create events — +1 when a case starts, -1 when it ends.
     events = pd.concat(
         [
             pd.Series(1, index=start_times, dtype="int64"),
@@ -203,15 +201,11 @@ def preprocess_time_series(event_log_df: pd.DataFrame) -> pd.DataFrame:
         ]
     )
 
-    # Step 2: Sort chronologically and compute the running count of active cases.
     events = events.sort_index()
     active_cases = events.cumsum()
 
-    # Step 3: For duplicate timestamps keep only the *last* cumsum value
-    #         (i.e. after all events at that instant have been applied).
     active_cases = active_cases[~active_cases.index.duplicated(keep="last")]
 
-    # Step 4: Align the irregular event-based series to the strict 1‑hour grid.
     active_df = pd.DataFrame(
         {"timestamp": active_cases.index, "active_cases": active_cases.values}
     )
@@ -224,7 +218,6 @@ def preprocess_time_series(event_log_df: pd.DataFrame) -> pd.DataFrame:
         direction="backward",
     )
 
-    # Timestamps before the first event have no active cases.
     time_series["active_cases"] = (
         time_series["active_cases"].fillna(0).astype(int)
     )

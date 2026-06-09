@@ -138,17 +138,13 @@ def sliding_window_factory(
     def sliding_window(trace: np.ndarray) -> np.ndarray:
         n_events = trace.shape[0]
 
-        # Step 1: Build end_idx array — start at min_length because any
-        #         shorter window would be dropped by the length check anyway.
         end_idx = np.arange(min_length, n_events + 1)
 
-        # Step 2: Compute start_idx in a single vectorized step.
         if max_length is None:
             start_idx = np.zeros_like(end_idx)
         else:
             start_idx = np.maximum(end_idx - max_length, 0)
 
-        # Step 3: Stack into (N, 2) array.
         return np.column_stack((start_idx, end_idx))
 
     return sliding_window
