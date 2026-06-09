@@ -135,20 +135,21 @@ def sliding_window_factory(
         A callable that generates trace windows from a trace numpy array.
     """
 
-    def sliding_window(trace: np.ndarray) -> Iterable[tuple[int, int]]:
+    def sliding_window(trace: np.ndarray) -> np.ndarray:
         n_events = trace.shape[0]
-        indice = []
-        for end_idx in range(1, n_events + 1):
-            start_idx = (
-                0 if max_length is None else max(end_idx - max_length, 0)
-            )
 
-            if end_idx - start_idx < min_length:
-                continue
+        # Step 1: Build end_idx array — start at min_length because any
+        #         shorter window would be dropped by the length check anyway.
+        end_idx = np.arange(min_length, n_events + 1)
 
-            indice.append((start_idx, end_idx))
+        # Step 2: Compute start_idx in a single vectorized step.
+        if max_length is None:
+            start_idx = np.zeros_like(end_idx)
+        else:
+            start_idx = np.maximum(end_idx - max_length, 0)
 
-        return indice
+        # Step 3: Stack into (N, 2) array.
+        return np.column_stack((start_idx, end_idx))
 
     return sliding_window
 
