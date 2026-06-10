@@ -22,7 +22,7 @@ class RawData:
 class TraceSample:
     case_id: str
     data: np.ndarray
-    prefix_indexes: Iterable[tuple[int, int]]
+    prefix_indexes: np.ndarray
 
 
 @dataclass(frozen=True)
@@ -72,7 +72,7 @@ class EvaluationReport:
 
 
 class WindowGenerator(Protocol):
-    def __call__(self, trace: np.ndarray) -> Iterable[tuple[int, int]]: ...
+    def __call__(self, trace: np.ndarray) -> np.ndarray: ...
 
 
 class TargetGenerator(Protocol):
