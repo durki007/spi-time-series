@@ -1,5 +1,4 @@
 import logging
-from collections.abc import Iterable
 
 import numpy as np
 import pandas as pd
@@ -126,17 +125,41 @@ def sliding_window_factory(
 
     Args:
         min_length:
-            Minimum number of events required in a window.
+            Minimum number of events required in a window (must be >= 1).
 
         max_length:
-            Maximum number of events allowed in a window. Set to None for no maximum length.
+            Maximum number of events allowed in a window. Set to None for
+            no maximum length. If provided, must be >= min_length.
 
     Returns:
         A callable that generates trace windows from a trace numpy array.
+
+    Raises:
+        ValueError: If ``min_length < 1`` or ``max_length < min_length``.
     """
+    if min_length < 1:
+        raise ValueError(f"min_length must be >= 1, got {min_length}")
+    if max_length is not None and max_length < min_length:
+        raise ValueError(
+            f"max_length ({max_length}) must be >= min_length ({min_length})"
+        )
+
+    logger.info(
+        "Creating sliding window generator (min_length=%d, max_length=%s)",
+        min_length,
+        max_length,
+    )
 
     def sliding_window(trace: np.ndarray) -> np.ndarray:
-        n_events = trace.shape[0]
+        n_events: int = trace.shape[0]
+
+        logger.debug(
+            "Building windows for trace with %d events "
+            "(min_length=%d, max_length=%s)",
+            n_events,
+            min_length,
+            max_length,
+        )
 
         end_idx = np.arange(min_length, n_events + 1)
 
@@ -145,7 +168,15 @@ def sliding_window_factory(
         else:
             start_idx = np.maximum(end_idx - max_length, 0)
 
-        return np.column_stack((start_idx, end_idx))
+        windows = np.column_stack((start_idx, end_idx))
+
+        logger.debug(
+            "Generated %d windows for trace with %d events",
+            windows.shape[0],
+            n_events,
+        )
+
+        return windows
 
     return sliding_window
 
@@ -153,22 +184,33 @@ def sliding_window_factory(
 def _build_trace_samples(
     df: pd.DataFrame,
     window_generator: WindowGenerator,
-) -> Iterable[TraceSample]:
+) -> list[TraceSample]:
     """
     Generate trace samples from an event log.
+
     Yields:
         TraceSample
     """
-    traces = []
+    logger.info("Building trace samples from event log (%d rows)", len(df))
+
+    traces: list[TraceSample] = []
     for case_id, trace in df.groupby("case:concept:name", sort=False):
         data = trace.to_numpy()
+        prefix_indexes = window_generator(data)
         traces.append(
             TraceSample(
-                case_id=case_id,
+                case_id=str(case_id),
                 data=data,
-                prefix_indexes=window_generator(data),
+                prefix_indexes=prefix_indexes,
             )
         )
+
+    logger.info(
+        "Built %d trace samples across %d unique cases",
+        len(traces),
+        df["case:concept:name"].nunique(),
+    )
+
     return traces
 
 
