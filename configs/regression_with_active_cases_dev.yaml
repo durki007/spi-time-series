@@ -1,5 +1,4 @@
-task: classification
-checkpoint_dir: ../data/checkpoints
+task: regression
 
 data:
   valid_end_activities:
@@ -10,6 +9,7 @@ data:
     - "A_Denied"
   top_k_variants: null
   split_quantile: 0.8
+  dev_mode: true
 
 prefix:
   min_length: 3
@@ -19,26 +19,24 @@ features:
   one_hot_encode_categorical: false
   enabled_features:
     - BasicControlFlowFeatures
+    - ActiveCaseCountFeature
   drop_features: []
 
 search:
   n_iter: 10
   cv_folds: 3
   random_state: 42
-  search_sample_size: 50000
+  search_sample_size: null
 
 models:
-  logistic_regression:
-    type: LogisticRegression
-    params:
-      max_iter: 5000
-      solver: saga
-      random_state: 42
+  ridge:
+    type: Ridge
+    params: {}
     param_grid:
-      C: [0.0001, 0.001, 0.01, 0.1, 1.0, 5.0, 10.0, 50.0, 100.0, 1000.0]
+      alpha: [0.0001, 0.001, 0.01, 0.1, 1.0, 5.0, 10.0, 50.0, 100.0, 1000.0]
 
   random_forest:
-    type: RandomForestClassifier
+    type: RandomForestRegressor
     params:
       n_jobs: -1
       random_state: 42
@@ -49,7 +47,7 @@ models:
       max_features: ["sqrt", 0.5]
 
   hist_gradient_boosting:
-    type: HistGradientBoostingClassifier
+    type: HistGradientBoostingRegressor
     params:
       random_state: 42
     param_grid:

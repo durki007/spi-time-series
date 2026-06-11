@@ -157,9 +157,17 @@ def _build_default_feature_extractor(config: RunConfig) -> FeatureExtractor:
             feature_list.append(ActiveCaseCountFeature())
 
     if config.task == "regression":
-        return extract_features_builder(feature_list, remaining_time_target)
+        return extract_features_builder(
+            feature_list,
+            remaining_time_target,
+            drop_features=config.features.drop_features,
+        )
     else:
-        return extract_features_builder(feature_list, outcome_target)
+        return extract_features_builder(
+            feature_list,
+            outcome_target,
+            drop_features=config.features.drop_features,
+        )
 
 
 # ---------------------------------------------------------------------------
