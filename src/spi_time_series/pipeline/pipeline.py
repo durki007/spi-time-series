@@ -78,6 +78,7 @@ class Pipeline:
     preprocessor: Preprocessor
     splitter: Splitter
     feature_extractor: FeatureExtractor
+    pca_keep_percentage: float | None
     models: dict[str, BaseEstimator]
     param_grids: dict[str, dict[str, list]] = field(default_factory=dict)
     evaluators: list[Evaluator] = field(default_factory=list)
@@ -241,6 +242,7 @@ class Pipeline:
                 models_needing_search,
                 {n: self.param_grids[n] for n in models_needing_search},
                 search_config,
+                pca_keep_percentage=self.pca_keep_percentage,
                 n_jobs=n_jobs,
             )
             for name in models_needing_search:
@@ -281,7 +283,9 @@ class Pipeline:
         assert self._features is not None
         if models_needing_train:
             logger.info("Training %d model(s)…", len(models_needing_train))
-            new_artifact = train(self._features, models_needing_train)
+            new_artifact = train(
+                self._features, models_needing_train, self.pca_keep_percentage
+            )
             for name in models_needing_train:
                 self._trained_models[name] = new_artifact.models[name]
                 self._train_keys[name] = new_train_keys[name]

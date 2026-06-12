@@ -5,6 +5,7 @@ import logging
 import numpy as np
 from sklearn.base import BaseEstimator, clone
 from sklearn.compose import ColumnTransformer, make_column_selector
+from sklearn.decomposition import PCA
 from sklearn.impute import SimpleImputer
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.pipeline import Pipeline as SklearnPipeline
@@ -36,12 +37,35 @@ def _build_numeric_preprocessor() -> ColumnTransformer:
     )
 
 
+def _build_preprocessing_pipeline(
+    *,
+    pca_keep_percentage: float | None = None,
+) -> SklearnPipeline:
+    steps = [
+        ("preprocessor", _build_numeric_preprocessor()),
+    ]
+
+    if pca_keep_percentage is not None:
+        steps.append(
+            (
+                "pca",
+                PCA(
+                    n_components=pca_keep_percentage,
+                    svd_solver="full",
+                ),
+            )
+        )
+
+    return SklearnPipeline(steps)
+
+
 def search_hyperparams(
     features: FeatureSet,
     models: dict[str, BaseEstimator],
     param_grids: dict[str, dict[str, list]],
     search_config: SearchConfig,
     *,
+    pca_keep_percentage: float | None = None,
     n_jobs: int = 1,
 ) -> dict[str, BaseEstimator]:
     """Run RandomizedSearchCV for each model that has a param_grid.
@@ -62,7 +86,9 @@ def search_hyperparams(
         )
         y_train = y_train.loc[X_train.index]
 
-    search_pre = _build_numeric_preprocessor()
+    search_pre = _build_preprocessing_pipeline(
+        pca_keep_percentage=pca_keep_percentage
+    )
     X_num = search_pre.fit_transform(X_train)
 
     optimized: dict[str, BaseEstimator] = {}
@@ -104,7 +130,9 @@ def search_hyperparams(
 
 
 def train(
-    features: FeatureSet, models: dict[str, BaseEstimator]
+    features: FeatureSet,
+    models: dict[str, BaseEstimator],
+    pca_keep_percentage: float | None = None,
 ) -> ModelArtifact:
     """Fit baseline and extended models on training feature vectors.
 
@@ -121,17 +149,33 @@ def train(
         models.items(), desc="Training models", unit="model"
     ):
         logger.info("Fitting '%s'…", name)
-        if "verbose" in estimator.get_params():
-            estimator = clone(estimator).set_params(verbose=0)
-        pipe = SklearnPipeline(
-            steps=[
-                ("preprocessor", _build_numeric_preprocessor()),
-                ("model", estimator),
-            ]
-        )
+
+        steps = [("preprocessor", _build_numeric_preprocessor())]
+
+        if pca_keep_percentage is not None:
+            steps.append(
+                (
+                    "pca",
+                    PCA(
+                        n_components=pca_keep_percentage,
+                        svd_solver="full",
+                    ),
+                )
+            )
+
+        steps.append(("model", estimator))
+        pipe = SklearnPipeline(steps=steps)
         pipe.fit(features.X_train, features.y_train)
         fitted[name] = pipe
+
         logger.info("'%s' trained.", name)
+        if pca_keep_percentage is not None:
+            pca = pipe.named_steps["pca"]
+            logger.info(
+                "PCA retained %d components explaining %.2f%% variance",
+                pca.n_components_,
+                100 * np.sum(pca.explained_variance_ratio_),
+            )
 
     return ModelArtifact(
         models=fitted,

@@ -162,6 +162,13 @@ class SearchConfig(BaseModel):
         return v
 
 
+class PCAConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    active: bool = False
+    keep_variability: float = 0.95
+
+
 class RunConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -170,6 +177,7 @@ class RunConfig(BaseModel):
     prefix: PrefixConfig = Field(default_factory=PrefixConfig)
     features: FeaturesConfig = Field(default_factory=FeaturesConfig)
     search: SearchConfig = Field(default_factory=SearchConfig)
+    pca_config: PCAConfig = Field(default_factory=PCAConfig)
     models: dict[str, ModelConfig]
 
     @field_validator("models")
@@ -202,3 +210,8 @@ class RunConfig(BaseModel):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text, encoding="utf-8")
         return text
+
+    @classmethod
+    def from_yaml(cls, path: Path) -> RunConfig:
+        raw: dict = yaml.safe_load(path.read_text(encoding="utf-8"))
+        return cls.model_validate(raw)
