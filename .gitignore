@@ -21,7 +21,6 @@ ENV/
 *.ipynb_checkpoints
 
 # Data — commit only small samples; keep large files out of the repo
-output/
 data/raw/
 data/interim/
 data/processed/
@@ -30,16 +29,11 @@ data/checkpoints/
 !data/interim/.gitkeep
 !data/processed/.gitkeep
 
-# Model artifacts
-results/models/
+# Model artifacts (generated formats not used by this pipeline)
 *.pkl
-*.joblib
 *.h5
 *.pt
 *.onnx
-
-# Figures (regeneratable)
-results/figures/
 
 # Environment / secrets
 .env
@@ -68,18 +62,8 @@ coverage.xml
 .mypy_cache/
 .dmypy.json
 
+# ruff
+.ruff_cache/
+
 # claude settings
 .claude/
-
-# Pipeline Outputs and Models
-results/
-output/
-*.joblib
-*.png
-*.jpg
-*.csv
-
-# Python Cache
-__pycache__/
-*.py[cod]
-*$py.class
