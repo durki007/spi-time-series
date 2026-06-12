@@ -21,6 +21,7 @@ ENV/
 *.ipynb_checkpoints
 
 # Data — commit only small samples; keep large files out of the repo
+output/
 data/raw/
 data/interim/
 data/processed/
@@ -34,6 +35,12 @@ data/checkpoints/
 *.h5
 *.pt
 *.onnx
+
+# Pipeline outputs (regeneratable — everyone runs their own)
+results/
+*.joblib
+*.csv
+*.png
 
 # Environment / secrets
 .env
