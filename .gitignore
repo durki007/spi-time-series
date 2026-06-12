@@ -70,3 +70,16 @@ coverage.xml
 
 # claude settings
 .claude/
+
+# Pipeline Outputs and Models
+results/
+output/
+*.joblib
+*.png
+*.jpg
+*.csv
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
