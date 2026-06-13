@@ -1,5 +1,6 @@
 import logging
 import warnings
+from pathlib import Path
 
 import pandas as pd
 from sklearn.metrics import (
@@ -19,6 +20,7 @@ from spi_time_series.data.schemas import (
     ModelComparisonResult,
     ModelRankEntry,
 )
+from spi_time_series.data.types import Reporter
 
 logger = logging.getLogger(__name__)
 
@@ -311,3 +313,87 @@ def compare_models(
         model_rankings=rankings,
         best_prefixes=best_prefixes,
     )
+
+
+def _make_model_comparison_reporter(
+    task: str,
+) -> Reporter:
+    """Factory: create a reporter that runs model comparison analysis.
+
+    The returned reporter calls :func:`compare_models` on the merged evaluation
+    report and persists two artefacts under ``output_dir / "reports"``:
+
+    * ``model_comparison.csv`` — per-model aggregate scores and ranks.
+    * ``best_prefixes.csv`` — per-model plateau prefix-length information.
+
+    Parameters
+    ----------
+    task:
+        ``"regression"`` or ``"classification"`` — forwarded to
+        :func:`compare_models`.
+
+    Returns
+    -------
+    Reporter
+        A callable conforming to :data:`spi_time_series.data.types.Reporter`.
+    """
+
+    def _reporter(
+        artifact: ModelArtifact,
+        report: EvaluationReport,
+        output_dir: Path | None,
+    ) -> None:
+        if output_dir is None:
+            return
+
+        comparison: ModelComparisonResult | None = compare_models(
+            report,
+            task,  # type: ignore[arg-type]
+        )
+        if comparison is None:
+            logger.warning(
+                "Model comparison could not be produced — "
+                "no prefix metrics available."
+            )
+            return
+
+        reports_dir: Path = output_dir / "reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+
+        # --- rankings CSV ---
+        ranking_rows: list[dict[str, object]] = [
+            {
+                "rank": r.rank,
+                "model": r.model_name,
+                "aggregate_score": round(r.aggregate_score, 4),
+                "metric": r.metric,
+            }
+            for r in comparison.model_rankings
+        ]
+        pd.DataFrame(ranking_rows).to_csv(
+            reports_dir / "model_comparison.csv", index=False
+        )
+        logger.info(
+            "Model comparison saved to %s",
+            reports_dir / "model_comparison.csv",
+        )
+
+        # --- best prefixes CSV ---
+        prefix_rows: list[dict[str, object]] = [
+            {
+                "model": info.model_name,
+                "plateau_prefix_length": info.plateau_prefix,
+                "metric": info.metric,
+                "metric_value": round(info.value, 4),
+            }
+            for info in comparison.best_prefixes.values()
+        ]
+        pd.DataFrame(prefix_rows).to_csv(
+            reports_dir / "best_prefixes.csv", index=False
+        )
+        logger.info(
+            "Best prefix info saved to %s",
+            reports_dir / "best_prefixes.csv",
+        )
+
+    return _reporter
