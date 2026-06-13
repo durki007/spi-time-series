@@ -19,6 +19,7 @@ features:
   enabled_features:
     - BasicControlFlowFeatures
     - ActiveCaseCountFeature
+  drop_features: []
 
 search:
   n_iter: 10
