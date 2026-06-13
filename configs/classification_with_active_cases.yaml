@@ -18,6 +18,9 @@ features:
   one_hot_encode_categorical: false
   enabled_features:
     - BasicControlFlowFeatures
+    - OfferFeatures
+    - InteractionFeatures
+    - WaitingStateFeatures
     - ActiveCaseCountFeature
   drop_features: []
 

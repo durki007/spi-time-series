@@ -74,3 +74,6 @@ coverage.xml
 
 # claude settings
 .claude/
+
+# results
+results

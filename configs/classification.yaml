@@ -13,13 +13,15 @@ data:
 
 prefix:
   min_length: 3
-  max_length: 10
+  # max_length: 10
 
 features:
   one_hot_encode_categorical: false
   enabled_features:
     - BasicControlFlowFeatures
-  drop_features: []
+    - OfferFeatures
+    - InteractionFeatures
+    - WaitingStateFeatures  drop_features: []
 
 search:
   n_iter: 10

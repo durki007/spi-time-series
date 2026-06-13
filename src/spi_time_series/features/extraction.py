@@ -1,5 +1,6 @@
 import logging
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
+from multiprocessing import Pool, cpu_count
 
 import numpy as np
 import pandas as pd
@@ -10,20 +11,79 @@ from spi_time_series.data.schemas import (
     PrefixFeature,
     PreprocessedData,
     TargetGenerator,
-    TraceSample,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def generate_feature_matrix(
-    samples: Iterable[TraceSample],
-    features: list[PrefixFeature],
-    target_generator: TargetGenerator,
-    col_idx_mapping: dict[str, int],
-    num_cases: int | None = None,
-) -> tuple[pd.DataFrame, pd.Series, list[str]]:
+_worker_features = None
+_worker_target_generator = None
+_worker_col_idx_mapping = None
 
+
+def _init_worker(features, target_generator, col_idx_mapping):
+    global _worker_features
+    global _worker_target_generator
+    global _worker_col_idx_mapping
+
+    _worker_features = features
+    _worker_target_generator = target_generator
+    _worker_col_idx_mapping = col_idx_mapping
+
+
+def _process_sample(sample):
+    rows = []
+    targets = []
+
+    data = sample.data
+    if (
+        _worker_features is None
+        or _worker_target_generator is None
+        or _worker_col_idx_mapping is None
+    ):
+        raise ValueError(
+            "Feature Extraction worker is not properly initialized!"
+        )
+
+    n_features = sum(len(feature.feature_names) for feature in _worker_features)
+
+    for start_idx, end_idx in sample.prefix_indexes:
+        prefix_data = data[start_idx:end_idx]
+
+        row = np.empty(n_features, dtype=np.float32)
+
+        offset = 0
+        for feature in _worker_features:
+            vec = feature(
+                prefix_data,
+                _worker_col_idx_mapping,
+            )
+
+            n = len(vec)
+            row[offset : offset + n] = vec
+            offset += n
+
+        rows.append(row)
+
+        targets.append(
+            _worker_target_generator(
+                trace=data,
+                start_idx=start_idx,
+                end_idx=end_idx,
+                col_idx_mapping=_worker_col_idx_mapping,
+            )
+        )
+
+    return rows, targets
+
+
+def generate_feature_matrix(
+    samples,
+    features,
+    target_generator,
+    col_idx_mapping,
+    num_cases=None,
+):
     # ---------------------------------------------------------
     # PRECOMPUTE FEATURE NAMES
     # ---------------------------------------------------------
@@ -35,72 +95,138 @@ def generate_feature_matrix(
             f"{feature.name()}__{name}" for name in feature.feature_names
         )
 
-    n_features = len(feature_names)
+    # Materialize samples because Pool needs a finite iterable
+    samples = list(samples)
 
     # ---------------------------------------------------------
-    # STORAGE
+    # PARALLEL PROCESSING
     # ---------------------------------------------------------
 
-    rows = []
-    targets = []
+    all_rows = []
+    all_targets = []
 
-    seen_cases = set()
+    with Pool(
+        cpu_count(),
+        _init_worker,
+        initargs=(
+            features,
+            target_generator,
+            col_idx_mapping,
+        ),
+    ) as pool:
+        results = pool.imap_unordered(
+            _process_sample,
+            samples,
+            chunksize=1,
+        )
 
-    pbar = tqdm(total=num_cases, desc="Processing cases")
-
-    # ---------------------------------------------------------
-    # MAIN LOOP
-    # ---------------------------------------------------------
-
-    for sample in samples:
-        data = sample.data
-
-        for start_idx, end_idx in sample.prefix_indexes:
-            prefix_data = data[start_idx:end_idx]
-
-            # preallocate row
-            row = np.empty(n_features, dtype=np.float32)
-            offset = 0
-
-            # evaluate features
-            for feature in features:
-                vec = feature(
-                    prefix_data,
-                    col_idx_mapping,
-                )
-                n = len(vec)
-                row[offset : offset + n] = vec
-                offset += n
-
-            rows.append(row)
-
-            targets.append(
-                target_generator(
-                    trace=data,
-                    start_idx=start_idx,
-                    end_idx=end_idx,
-                    col_idx_mapping=col_idx_mapping,
-                )
-            )
-
-        if sample.case_id not in seen_cases:
-            seen_cases.add(sample.case_id)
-            pbar.update(1)
-
-    pbar.close()
+        for rows, targets in tqdm(
+            results,
+            total=len(samples),
+            desc="Processing cases",
+        ):
+            all_rows.extend(rows)
+            all_targets.extend(targets)
 
     # ---------------------------------------------------------
     # FINALIZE
     # ---------------------------------------------------------
 
     X = pd.DataFrame(
-        np.vstack(rows),
+        np.vstack(all_rows),
         columns=feature_names,
     )
 
-    y = pd.Series(targets)
+    y = pd.Series(all_targets)
 
     return X, y, feature_names
+
+
+# def generate_feature_matrix(
+#     samples: Iterable[TraceSample],
+#     features: list[PrefixFeature],
+#     target_generator: TargetGenerator,
+#     col_idx_mapping: dict[str, int],
+#     num_cases: int | None = None,
+# ) -> tuple[pd.DataFrame, pd.Series, list[str]]:
+
+#     # ---------------------------------------------------------
+#     # PRECOMPUTE FEATURE NAMES
+#     # ---------------------------------------------------------
+
+#     feature_names: list[str] = []
+
+#     for feature in features:
+#         feature_names.extend(
+#             f"{feature.name()}__{name}" for name in feature.feature_names
+#         )
+
+#     n_features = len(feature_names)
+
+#     # ---------------------------------------------------------
+#     # STORAGE
+#     # ---------------------------------------------------------
+
+#     rows = []
+#     targets = []
+
+#     seen_cases = set()
+
+#     pbar = tqdm(total=num_cases, desc="Processing cases")
+
+#     # ---------------------------------------------------------
+#     # MAIN LOOP
+#     # ---------------------------------------------------------
+
+#     for sample in samples:
+#         data = sample.data
+
+#         for start_idx, end_idx in sample.prefix_indexes:
+#             prefix_data = data[start_idx:end_idx]
+
+#             # preallocate row
+#             row = np.empty(n_features, dtype=np.float32)
+#             offset = 0
+
+#             # evaluate features
+#             for feature in features:
+#                 vec = feature(
+#                     prefix_data,
+#                     col_idx_mapping,
+#                 )
+#                 n = len(vec)
+#                 row[offset : offset + n] = vec
+#                 offset += n
+
+#             rows.append(row)
+
+#             targets.append(
+#                 target_generator(
+#                     trace=data,
+#                     start_idx=start_idx,
+#                     end_idx=end_idx,
+#                     col_idx_mapping=col_idx_mapping,
+#                 )
+#             )
+
+#         if sample.case_id not in seen_cases:
+#             seen_cases.add(sample.case_id)
+#             pbar.update(1)
+
+#     pbar.close()
+
+#     # ---------------------------------------------------------
+#     # FINALIZE
+#     # ---------------------------------------------------------
+
+#     X = pd.DataFrame(
+#         np.vstack(rows),
+#         columns=feature_names,
+#     )
+
+#     y = pd.Series(targets)
+
+#     return X, y, feature_names
 
 
 def extract_features_builder(

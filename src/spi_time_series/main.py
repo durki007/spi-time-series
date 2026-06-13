@@ -34,7 +34,12 @@ from spi_time_series.evaluation.metrics import (
     evaluate,
 )
 from spi_time_series.features.extraction import extract_features_builder
-from spi_time_series.features.log_based_features import BasicControlFlowFeatures
+from spi_time_series.features.log_based_features import (
+    BasicControlFlowFeatures,
+    InteractionFeatures,
+    OfferFeatures,
+    WaitingStateFeatures,
+)
 from spi_time_series.features.targets import (
     outcome_target,
     remaining_time_target,
@@ -155,6 +160,12 @@ def _build_default_feature_extractor(config: RunConfig) -> FeatureExtractor:
                     one_hot_encode_categorical=config.features.one_hot_encode_categorical
                 )
             )
+        elif name == "OfferFeatures":
+            feature_list.append(OfferFeatures())
+        elif name == "InteractionFeatures":
+            feature_list.append(InteractionFeatures())
+        elif name == "WaitingStateFeatures":
+            feature_list.append(WaitingStateFeatures())
         elif name == "ActiveCaseCountFeature":
             feature_list.append(ActiveCaseCountFeature())
 

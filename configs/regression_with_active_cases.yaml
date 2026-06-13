@@ -19,6 +19,9 @@ features:
   enabled_features:
     - BasicControlFlowFeatures
     - ActiveCaseCountFeature
+    - OfferFeatures
+    - InteractionFeatures
+    - WaitingStateFeatures
   drop_features: []
 
 search:
