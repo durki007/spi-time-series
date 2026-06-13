@@ -30,16 +30,17 @@ data/checkpoints/
 !data/interim/.gitkeep
 !data/processed/.gitkeep
 
-# Model artifacts
-results/models/
+# Model artifacts (generated formats not used by this pipeline)
 *.pkl
-*.joblib
 *.h5
 *.pt
 *.onnx
 
-# Figures (regeneratable)
-results/figures/
+# Pipeline outputs (regeneratable — everyone runs their own)
+results/
+*.joblib
+*.csv
+*.png
 
 # Environment / secrets
 .env
@@ -67,6 +68,9 @@ coverage.xml
 # mypy / type checking
 .mypy_cache/
 .dmypy.json
+
+# ruff
+.ruff_cache/
 
 # claude settings
 .claude/
