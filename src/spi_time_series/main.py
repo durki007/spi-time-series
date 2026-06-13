@@ -84,9 +84,9 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--output-dir",
         "-o",
         type=Path,
-        default="output/",
+        default=None,
         metavar="PATH",
-        help="Directory for evaluation artefacts and saved config. Defaults to 'output/'.",
+        help="Directory for evaluation artefacts and saved config. Defaults to 'output/<config_name>/'.",
     )
     _default_jobs = max(1, (os.cpu_count() or 1) - 1)
     parser.add_argument(
@@ -316,8 +316,14 @@ def main(argv: list[str] | None = None) -> None:
         print(config.to_yaml())
         return None
 
-    output_dir = args.output_dir
+    output_dir = args.output_dir or Path("output") / config_path.stem
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    file_handler = logging.FileHandler(output_dir / "run.log")
+    file_handler.setFormatter(
+        logging.Formatter("%(levelname)s %(name)s: %(message)s")
+    )
+    logging.getLogger().addHandler(file_handler)
 
     pipeline = (
         PipelineBuilder.from_config(config)
