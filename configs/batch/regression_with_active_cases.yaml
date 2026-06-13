@@ -1,5 +1,4 @@
 task: regression
-checkpoint_dir: ../data/checkpoints
 
 data:
   valid_end_activities:
@@ -22,6 +21,7 @@ features:
     - OfferFeatures
     - InteractionFeatures
     - WaitingStateFeatures
+    - ActiveCaseCountFeature
 search:
   n_iter: 10
   cv_folds: 3
@@ -29,7 +29,7 @@ search:
   search_sample_size: null
 
 pca_config:
-  active: False
+  active: True
   keep_variability: 0.95
 
 models:

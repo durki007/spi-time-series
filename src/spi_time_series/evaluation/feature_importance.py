@@ -1,8 +1,11 @@
+import logging
 from pathlib import Path
 
-import matplotlib
 import pandas as pd
 import seaborn as sns
+
+# matplotlib.use("Agg")
+from matplotlib import pyplot as plt
 from sklearn.inspection import permutation_importance
 from tqdm import tqdm
 
@@ -13,10 +16,8 @@ from spi_time_series.data.schemas import (
     ModelArtifact,
 )
 
-matplotlib.use("Agg")
-from matplotlib import pyplot as plt
-
 _PREFIX_LENGTH_COL = "BasicControlFlowFeatures__prefix_length"
+logger = logging.getLogger()
 
 
 def evaluate_feature_importance(
@@ -28,6 +29,7 @@ def evaluate_feature_importance(
     model_names: list[str] = list(artifact.models)
 
     for model_name, pipeline in artifact.models.items():
+        logger.info("Evaluate feature importance for model %s", model_name)
         # Feature Importance per model
         importance = permutation_importance(
             pipeline,

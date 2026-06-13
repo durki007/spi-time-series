@@ -19,7 +19,9 @@ features:
   enabled_features:
     - BasicControlFlowFeatures
     - ActiveCaseCountFeature
-
+    - OfferFeatures
+    - InteractionFeatures
+    - WaitingStateFeatures
 search:
   n_iter: 10
   cv_folds: 3
