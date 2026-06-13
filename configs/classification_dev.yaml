@@ -22,6 +22,7 @@ features:
     - OfferFeatures
     - InteractionFeatures
     - WaitingStateFeatures
+  drop_features: []
 
 search:
   n_iter: 10

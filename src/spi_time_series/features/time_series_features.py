@@ -1,9 +1,12 @@
+import logging
 from collections.abc import Iterable
 
 import numpy as np
 import pandas as pd
 
 from spi_time_series.data.schemas import TraceSample
+
+logger = logging.getLogger(__name__)
 
 
 class ActiveCaseCountFeature:
@@ -14,6 +17,8 @@ class ActiveCaseCountFeature:
     time_series: pd.DataFrame
     cleaned_event_log: pd.DataFrame
     featured_df: pd.DataFrame
+    _ts_array: np.ndarray
+    _features_array: np.ndarray
 
     def __init__(self):
         self.feature_names = ["active_cases"]
@@ -72,7 +77,8 @@ class ActiveCaseCountFeature:
         idx = np.searchsorted(self._ts_array, ts, side="right") - 1
         if idx < 0:
             idx = 0
-        return self._features_array[idx]
+        result: np.ndarray = self._features_array[idx]
+        return result
 
 
 def extract_time_series_features(time_series_df: pd.DataFrame) -> pd.DataFrame:
@@ -169,6 +175,16 @@ def preprocess_time_series(event_log_df: pd.DataFrame) -> pd.DataFrame:
     The grid spans the full log from the minimum start time to the maximum
     end time and uses a 1-hour frequency. The returned frame includes
     active case counts for each timestamp.
+
+    Args:
+        event_log_df: DataFrame with columns ``case_id``, ``start_time``,
+            and ``end_time``.
+
+    Returns:
+        DataFrame with ``timestamp`` and ``active_cases`` columns.
+
+    Raises:
+        KeyError: If any required column is missing.
     """
     required_columns = {"case_id", "start_time", "end_time"}
     missing_columns = required_columns.difference(event_log_df.columns)
@@ -177,6 +193,7 @@ def preprocess_time_series(event_log_df: pd.DataFrame) -> pd.DataFrame:
         raise KeyError(f"Missing required columns: {missing}")
 
     if event_log_df.empty:
+        logger.info("Empty event log — returning empty time series")
         return pd.DataFrame(
             {
                 "timestamp": pd.DatetimeIndex([], name="timestamp"),
@@ -184,26 +201,61 @@ def preprocess_time_series(event_log_df: pd.DataFrame) -> pd.DataFrame:
             }
         )
 
+    logger.info("Preprocessing time series for %d cases", len(event_log_df))
+
     start_times = pd.to_datetime(event_log_df["start_time"])
     end_times = pd.to_datetime(event_log_df["end_time"])
 
     min_start_time = start_times.min()
     max_end_time = end_times.max()
 
+    logger.debug("Time range: %s → %s", min_start_time, max_end_time)
+
     timestamp_grid = pd.date_range(
         start=min_start_time, end=max_end_time, freq="1h"
     )
 
-    time_series = pd.DataFrame({"timestamp": timestamp_grid}).set_index(
-        "timestamp"
+    logger.debug("Built timestamp grid: %d hourly steps", len(timestamp_grid))
+
+    # --- Vectorized event-based cumulative sum ---
+    # Step 1: Create events — +1 when a case starts, -1 when it ends.
+    events = pd.concat(
+        [
+            pd.Series(1, index=start_times, dtype="int64"),
+            pd.Series(-1, index=end_times, dtype="int64"),
+        ]
     )
-    start_values = start_times.to_numpy()
-    end_values = end_times.to_numpy()
 
-    time_series["active_cases"] = [
-        int(((start_values <= ts) & (end_values >= ts)).sum())
-        for ts in time_series.index
-    ]
-    time_series["active_cases"] = time_series["active_cases"].ffill()
+    # Step 2: Sort chronologically and compute the running count of active cases.
+    events = events.sort_index()
+    active_cases = events.cumsum()
 
-    return time_series.reset_index()
+    # Step 3: For duplicate timestamps keep only the *last* cumsum value
+    #         (i.e. after all events at that instant have been applied).
+    active_cases = active_cases[~active_cases.index.duplicated(keep="last")]
+
+    # Step 4: Align the irregular event-based series to the strict 1‑hour grid.
+    active_df = pd.DataFrame(
+        {"timestamp": active_cases.index, "active_cases": active_cases.values}
+    )
+    grid_df = pd.DataFrame({"timestamp": timestamp_grid})
+
+    time_series = pd.merge_asof(
+        grid_df,
+        active_df,
+        on="timestamp",
+        direction="backward",
+    )
+
+    # Timestamps before the first event have no active cases.
+    time_series["active_cases"] = (
+        time_series["active_cases"].fillna(0).astype(int)
+    )
+
+    logger.info(
+        "Finished time series preprocessing: %d rows, max active cases = %d",
+        len(time_series),
+        time_series["active_cases"].max(),
+    )
+
+    return time_series

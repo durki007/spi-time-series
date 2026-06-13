@@ -12,3 +12,4 @@ ylabel
 cmap
 viridis
 cbar
+sharey

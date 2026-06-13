@@ -132,6 +132,16 @@ class FeaturesConfig(BaseModel):
     enabled_features: list[str] = Field(
         default_factory=lambda: ["BasicControlFlowFeatures"]
     )
+    drop_features: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Column names to drop from the extracted feature matrices "
+            "(X_train and X_test) before training.  Use this to prune "
+            "features that showed low or negative permutation importance "
+            "during prior evaluation runs.  Missing columns are logged "
+            "as a warning and skipped silently."
+        ),
+    )
 
     @field_validator("enabled_features")
     @classmethod

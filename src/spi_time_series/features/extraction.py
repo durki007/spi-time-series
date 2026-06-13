@@ -233,9 +233,38 @@ def extract_features_builder(
     features: list[PrefixFeature],
     target_generator: TargetGenerator,
     feature_kwargs: dict[str, dict] | None = None,
+    *,
+    drop_features: list[str] | None = None,
 ) -> Callable[[PreprocessedData], FeatureSet]:
+    """Create a feature extractor callable with optional column pruning.
+
+    Parameters
+    ----------
+    features:
+        Ordered list of prefix features to compute.
+    target_generator:
+        Function that produces a target label for each prefix window.
+    feature_kwargs:
+        Optional per-feature keyword-argument overrides keyed by feature name.
+    drop_features:
+        Column names to remove from ``X_train`` and ``X_test`` after
+        extraction.  Columns that are not present in the dataframe are
+        logged as a warning and skipped.  Pass ``None`` or an empty list
+        to keep all columns.
+
+    Returns
+    -------
+    Callable[[PreprocessedData], FeatureSet]
+        A function that accepts preprocessed data and returns a FeatureSet.
+    """
     if feature_kwargs is None:
         feature_kwargs = {}
+
+    if drop_features is None:
+        drop_features = []
+
+    # Normalize to a set for efficient lookup
+    _drop: set[str] = set(drop_features)
 
     def extract_features(data: PreprocessedData) -> FeatureSet:
         # fit features on training data
@@ -262,6 +291,32 @@ def extract_features_builder(
             col_idx_mapping=data.col_idx,
             num_cases=data.num_test_cases,
         )
+
+        # ---------------------------------------------------------
+        # PRUNE LOW-IMPORTANCE FEATURES
+        # ---------------------------------------------------------
+        if _drop:
+            for side, df in (("train", X_train), ("test", X_test)):
+                missing: set[str] = _drop - set(df.columns)
+                present: set[str] = _drop & set(df.columns)
+                if missing:
+                    logger.warning(
+                        "drop_features: %d column(s) not found in X_%s: %s",
+                        len(missing),
+                        side,
+                        sorted(missing),
+                    )
+                if present:
+                    logger.info(
+                        "Dropping %d feature(s) from X_%s: %s",
+                        len(present),
+                        side,
+                        sorted(present),
+                    )
+                    df.drop(columns=list(present), inplace=True)
+
+            # Recompute feature_names after pruning
+            feature_names = list(X_train.columns)
 
         return FeatureSet(
             X_train=X_train,
