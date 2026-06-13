@@ -71,6 +71,67 @@ class EvaluationReport:
     prefix_lengths: list[int] = field(default_factory=list)
 
 
+@dataclass
+class BestPrefixInfo:
+    """Identifies the prefix length where predictive performance plateaus
+    for a single model.
+
+    Attributes:
+        model_name: Name of the model.
+        plateau_prefix: Smallest prefix length where the relative improvement
+            (delta) of *metric* falls below *plateau_threshold*.
+        metric: Name of the metric used to determine the plateau (e.g. ``rmse``).
+        value: Metric value at the plateau prefix.
+        plateau_threshold: Fractional threshold for relative improvement.
+    """
+
+    model_name: str
+    plateau_prefix: int
+    metric: str
+    value: float
+    plateau_threshold: float
+
+
+@dataclass
+class ModelRankEntry:
+    """Aggregated performance for a single model across all prefix lengths.
+
+    Attributes:
+        model_name: Name of the model.
+        aggregate_score: Mean of *metric* across all evaluated prefix lengths.
+        metric: Name of the aggregation metric (e.g. ``rmse``).
+        rank: 1-based rank within the comparison (1 = best).
+    """
+
+    model_name: str
+    aggregate_score: float
+    metric: str
+    rank: int
+
+
+@dataclass
+class ModelComparisonResult:
+    """Structured comparison of trained models and their optimal prefix lengths.
+
+    Produced by :func:`spi_time_series.evaluation.metrics.compare_models`.
+
+    Attributes:
+        task: The task type (``regression`` or ``classification``).
+        best_model: Model name with the best aggregate score.
+        best_model_score: Aggregate score of the best model.
+        ranking_metric: Metric used for ranking and plateau detection.
+        model_rankings: Sorted list of per-model aggregate scores.
+        best_prefixes: Per-model plateau information keyed by model name.
+    """
+
+    task: str
+    best_model: str
+    best_model_score: float
+    ranking_metric: str
+    model_rankings: list[ModelRankEntry] = field(default_factory=list)
+    best_prefixes: dict[str, BestPrefixInfo] = field(default_factory=dict)
+
+
 class WindowGenerator(Protocol):
     def __call__(self, trace: np.ndarray) -> np.ndarray: ...
 
