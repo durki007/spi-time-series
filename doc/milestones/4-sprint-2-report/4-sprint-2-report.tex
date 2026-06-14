@@ -1,0 +1,197 @@
+% This is samplepaper.tex, a sample chapter demonstrating the
+% LLNCS macro package for Springer Computer Science proceedings;
+% Version 2.21 of 2022/01/12
+%
+\documentclass[runningheads]{llncs}
+%
+\usepackage[T1]{fontenc}
+% T1 fonts will be used to generate the final print and online PDFs,
+% so please use T1 fonts in your manuscript whenever possible.
+% Other font encondings may result in incorrect characters.
+%
+\usepackage{graphicx}
+% Used for displaying a sample figure. If possible, figure files should
+% be included in EPS format.
+%
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{tabularx}
+% If you use the hyperref package, please uncomment the following two lines
+% to display URLs in blue roman font according to Springer's eBook style:
+\usepackage{color}
+\usepackage[colorlinks=true, linkcolor=black, citecolor=black, urlcolor=blue]{hyperref}
+\renewcommand\UrlFont{\color{blue}\rmfamily}
+\urlstyle{rm}
+%
+\usepackage{soul}
+%
+\begin{document}
+%
+\title{MSc Project 1: Time-Series-Enhanced Predictive Process Monitoring}
+\subtitle{Phase Review 2}
+%
+\titlerunning{Time-Series-Enhanced PPM: Requirement Engineering}
+% If the paper title is too long for the running head, you can set
+% an abbreviated paper title here
+%
+\author{Michał Durkalec \and
+    Konstantinos Sakkas \and
+    Roman Ležovič
+}
+%
+\authorrunning{M. Durkalec et al.}
+% First names are abbreviated in the running head.
+% If there are more than two authors, 'et al.' is used.
+%
+\institute{Supervised Process Intelligence (SPI) Lab,\\
+    RWTH Aachen University, Aachen, Germany\\
+    \email{office@pads.rwth-aachen.de}}
+%
+\maketitle  % typeset the header of the contribution
+%
+\begin{abstract}
+    This document covers Sprint~2 of the project, reporting on its objectives, technical implementation, and retrospective. The main achievements were: the derivation and integration of active-case-count time-series features from the BPI Challenge 2017 event log, aligned with case prefixes using timestamps; the implementation of prediction target functions for remaining time and loan outcome; and the introduction of a parametric pipeline execution system with a CLI entry point. A classification evaluation module (accuracy, F1) was also added alongside the existing regression metrics. The sprint concludes with all pipeline components wired end-to-end and runnable from a single command, setting the stage for the full comparative evaluation and final report.
+\end{abstract}
+%
+\keywords{Predictive Process Monitoring \and Time-Series Features \and Process Mining \and Feature Engineering \and Parametric Pipeline}
+%
+%
+\section{Introduction \& Objectives}
+
+\subsection{Sprint Goals}
+
+Sprint~2 built directly on the modular pipeline delivered in Sprint~1 by pursuing three parallel tracks. The first was \emph{time-series incorporation}: deriving and aligning external temporal signals with the case prefixes generated in Sprint~1. The second was \emph{model extension}: training and evaluating hybrid models that combine the existing log-based feature set with the newly derived time-series features, and comparing their performance against the Sprint~1 baselines. The third was \emph{infrastructure improvement}: introducing parametric run configuration, a CLI entry point, and a development dataset to reduce the iteration cycle during experimentation.
+
+\subsection{Team Organization}
+
+Role assignments were rotated as planned at the end of Sprint~1 (\autoref{tab:roles}). Konstantinos took over as Project Coordinator and Scrum Master. Michal moved to Technical Lead, focusing on infrastructure and pipeline parameterization. Roman optimized the pipeline infrastructure, enabling the previously unusable onehot encoded baseline features. Konstantinos also retained the Data and Preprocessing Lead role, driving time-series feature extraction and alignment. Issue tracking and sprint management continued exclusively within GitHub Issues following the consolidation from Trello in Sprint~1.
+
+
+\section{Technical Implementation}
+
+Sprint~2 extended the existing pipeline with time-series functionality, prediction targets, and infrastructure improvements. The modular strategy-pattern architecture introduced in Sprint~1 absorbed these additions without structural changes to existing code. The following subsections describe the time-series pipeline, the target functions and extended evaluation, and the infrastructure improvements delivered across the closed issues.
+
+\subsection{Time-Series Feature Pipeline}
+
+Time-series signals were derived directly from the BPI~2017 event log~\cite{bpic2017} rather than from an external source, treating the log itself as a source of workload dynamics. The derivation and integration proceeded in three stages, all implemented in \texttt{features/time\_series\_features.py}.
+
+\paragraph{Preprocessing (Issue~\#54).} Case start and end times are extracted from the cleaned event log and used to build a continuous hourly timestamp grid spanning the full log. For each hour, the number of concurrently active cases is computed by counting cases whose lifetime interval contains that timestamp. The result is a regularly spaced active-case-count time series requiring no missing-value imputation.
+
+\paragraph{Feature extraction (Issue~\#55).} Rolling-window statistics---mean, maximum, and standard deviation---are computed over fixed windows of 1~h, 6~h, 12~h, and 24~h for the active-case-count series. Lag features (the raw count offset by 1, 6, 12, and 24 steps) and their first-differences (trend) are appended, together with temporal indicators (hour of day, day of week, and a weekend flag). The result is a fixed-length feature vector representing the workload context observable at the time a given prefix ends.
+
+\paragraph{Alignment (Issue~\#56).} Time-series feature vectors are joined to case prefixes using the timestamp of the last event in each prefix as the alignment key. Temporal mismatches are resolved by a backward-looking lookup via \texttt{merge\_asof}: each prefix receives the most recently available time-series observation at or before its cutoff timestamp.
+
+The global time-series deliverable (Issue~\#52) integrates these three stages into the existing pipeline as an \texttt{ActiveCaseCountFeature} class implementing the \texttt{PrefixFeature} protocol. Multiple \texttt{PrefixFeature} instances---log-based and time-series---are composed by \texttt{extract\_features\_builder}, keeping the interface consistent with the log-based features from Sprint~1.
+
+\subsection{Target Functions and Extended Evaluation}
+
+Issue~\#71 introduced the prediction targets and extended the evaluation module to support both task types.
+
+\paragraph{Target functions.} \texttt{features/targets.py} provides two target generators used by the pipeline. \texttt{remaining\_time\_target} computes the number of hours between the last event of a prefix and the final event of the trace. \texttt{outcome\_target} determines the final loan outcome---\emph{pending}, \emph{denied}, or \emph{cancelled}---by inspecting which outcome-defining activity (\texttt{A\_Pending}, \texttt{A\_Denied}, or \texttt{A\_Cancelled}) appears in the complete trace; cases with no matching activity are filtered out during preprocessing.
+
+\paragraph{Classification metrics.} \texttt{evaluation/metrics.py} was extended to dispatch on task type: regression predictions are still evaluated with MAE, RMSE, and R\textsuperscript{2}; classification predictions are now evaluated with accuracy, macro-F1, and weighted-F1, all reported per prefix length.
+
+\paragraph{Extended configurations.} Hybrid pipelines combining \texttt{BasicControlFlowFeatures} and \texttt{ActiveCaseCountFeature} are specified in \texttt{configs/classification\_with active\_cases.yaml} and \texttt{configs/regression\_with\_active\_cases.yaml}.
+Both reuse the three-algorithm design from Sprint~1 --- Logistic~Regression / Ridge as the linear baseline, Random~Forest, and HistGradientBoosting --- applied to the augmented feature set. Hyperparameter search uses \texttt{RandomizedSearchCV} with $k$-fold cross-validation; temporal ordering is enforced at the train/test split level via a strict time-based cutoff.
+
+\subsection{Infrastructure Improvements}
+
+Three infrastructure issues were resolved in Sprint~2. Issue~\#63 introduced a parametric run configuration system backed by Pydantic: a YAML configuration file controls which prediction task, feature set, model family, and hyperparameter search budget are used in a given experiment, eliminating the need to modify source code between runs. Issue~\#64 added a CLI entry point (\texttt{main.py}) that executes the full pipeline end-to-end from raw data to metrics given a configuration file, fulfilling REQ-IT-03 and simplifying reproduction. It also supports checkpoint save/restore and dot-notation config overrides. The development dataset is not a separate file but a \texttt{dev\_mode} flag in the configuration: when enabled, \texttt{filter\_dev\_cases()} in \texttt{preprocessing/preprocess.py} retains only the earliest 10\% of cases (by start time), reducing pipeline execution time during development. Additionally, Issue~\#62 optimised the one-hot encoder introduced in Sprint~1, reducing memory consumption for high-cardinality activity-name columns and achieving an extraction speed up of around 10x.
+
+\autoref{tab:milestones} lists the Sprint~2 implementation steps in the order they were delivered.
+
+\begin{table}[H]
+    \centering
+    \caption{Sprint~2 implementation milestones.}
+    \label{tab:milestones}
+    \begin{tabularx}{\textwidth}{lXX}
+        \toprule
+        \textbf{Issue} & \textbf{Description}                                  & \textbf{Key modules}                                                         \\
+        \midrule
+        \#52           & Global time-series data implementation (deliverable)  & \texttt{features/time\_series\_features.py}, \texttt{features/extraction.py} \\
+        \#53           & Implement parametric pipeline execution (deliverable) & \texttt{pipeline/builder.py}, \texttt{main.py}                               \\
+        \#54           & Preprocess data as time-series                        & \texttt{features/time\_series\_features.py}                                  \\
+        \#55           & Extract time-series features                          & \texttt{features/time\_series\_features.py}                                  \\
+        \#56           & Align time-series signals with case prefixes          & \texttt{features/time\_series\_features.py}                                  \\
+        \#58           & Extended models                                       & \texttt{configs}                                                             \\
+        \#62           & Optimise one-hot encoder                              & \texttt{features/log\_based\_features.py}                                    \\
+        \#63           & Implement parametric run configuration                & \texttt{config/schema.py}, \texttt{config/loader.py}                         \\
+        \#64           & Implement pipeline CLI entry point                    & \texttt{main.py}                                                             \\
+        \#71           & Implement target functions and classification metrics & \texttt{features/targets.py}, \texttt{evaluation/metrics.py}                 \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\section{Review \& Retrospective}
+
+\subsection{Successes}
+
+All planned Sprint~2 deliverables were completed. The three major deliverables---global time-series data integration (\#52), target functions and extended evaluation (\#71), and parametric pipeline execution (\#53)---were merged and verified. A full list of closed issues is given on \href{https://github.com/durki007/spi-time-series/milestone/2?closed=1}{GitHub}.
+
+The modular strategy-pattern architecture from Sprint~1 proved effective: adding \texttt{ActiveCaseCountFeature} as a new \texttt{PrefixFeature} required only minor changes to existing preprocessing or model code. The parametric configuration system and CLI entry point together mean that the full pipeline --- from raw XES data to evaluation metrics --- is now executable with a single command, satisfying REQ-IT-03 and REQ-DOC-01.
+
+\subsection{Difficulties}
+
+\begin{itemize}
+    \item \textbf{Time-series alignment edge cases.} Aligning time-series snapshots with case prefixes introduced subtle boundary conditions around timezone-aware versus timezone-naive timestamps, which caused comparison failures caught only during testing. This was resolved by normalising timestamp types in the preprocessing step before alignment.
+
+    \item \textbf{Active-case-count performance.} The initial implementation computed active-case counts with a naive per-row loop over the full case list, which was prohibitively slow on the full BPI~2017 dataset. The lookup was optimised by pre-sorting timestamps and using \texttt{numpy.searchsorted}, achieving a significant speedup.
+
+    \item \textbf{Outcome target coverage.} Some cases in the BPI~2017 log contain none of the three outcome-defining activities, making it impossible to assign a class label. A filtering step was added to \texttt{clean\_event\_log} to discard such cases before prefix generation, ensuring a clean training set for the classification task.
+
+    \item \textbf{Configuration schema design.} Introducing a parametric run configuration (Issue~\#63) required agreeing on a Pydantic schema that could represent both classification and regression pipelines, all three model families, and the choice between log-only and hybrid feature sets. Several design iterations were needed before settling on the final structure.
+\end{itemize}
+
+\subsection{Task Tracking}
+
+Sprint~2 was managed entirely within GitHub Issues, following the consolidation from Trello in Sprint~1. Parent issues represented deliverables; sub-issues tracked individual implementation tasks linked to pull requests. This structure proved effective: each deliverable's completion status was immediately visible from the parent issue, and code review was consistently applied via pull requests before merging to \texttt{dev}.
+
+
+\section{Moving Forwards}
+
+\subsection{Future Planning}
+
+Sprint~3 will focus on completing the experimental evaluation and producing the final written report. The planned work comprises the following tracks:
+
+\begin{itemize}
+    \item \textbf{Feature importance analysis.} Feature importance scores will be computed and visualised for tree-based models, comparing the relative contribution of log-based and time-series features (REQ-RE-02). This will inform the critical discussion of whether and under which conditions the active-case-count signals add value.
+
+    \item \textbf{Feature selection.} Based on the feature importance data, analysis and testing - new features will be proposed and selected in order to improve overall model performance. The currently implemented time-series features don't improve model performance as expected, we plan to further improve on them via feature selection.
+
+    \item \textbf{Rigorous comparative evaluation.} We will run the full experiment suite---baseline versus extended models, across both classification and regression tasks---and report performance broken down by prefix length (REQ-ME-04, REQ-RE-01). Statistical or qualitative significance assessments will be included as required by REQ-DOC-04.
+
+    \item \textbf{Final report.} The 10--15 page final report (REQ-DOC-03, REQ-DOC-04) will cover data preprocessing and feature engineering choices, model specification and evaluation protocol, and a critical discussion of the added value of time-series features, including potential reasons for success or failure, computational overhead, and generalisability.
+\end{itemize}
+
+\subsection{Role Allocation}
+
+\begin{table}[H]
+    \caption{Role assignments for Sprints 1--3.}\label{tab:roles}
+    \centering
+    \begin{tabular}{@{}llll@{}}
+        \toprule
+        \textbf{Role}                      & \textbf{Sprint 1}                                        & \textbf{Sprint 2} & \textbf{Sprint 3} \\
+        \midrule
+        Project Coordinator / Scrum Master & Michal                                                   & Konstantinos      & Roman             \\
+        Technical Lead / Architecture      & Roman                                                    & Michal            & Konstantinos      \\
+        Data \& Preprocessing Lead         & Roman, Konstantinos                                      & Konstantinos      & Roman             \\
+        Modelling \& Experimentation Lead  & Michal                                                   & Roman             & Michal            \\
+        Evaluation \& Visualization Lead   & Konstantinos                                             & Michal            & Konstantinos      \\
+        Quality \& Tooling (Tests, CI)     & Konstantinos                                             & Roman             & Roman             \\
+        Documentation \& Reporting         & \multicolumn{3}{c}{Michał, Roman, Konstantinos (shared)}                                         \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+
+
+% ---- Bibliography ----
+\begin{thebibliography}{8}
+
+    \bibitem{bpic2017}
+    van Dongen, B.F.: BPI Challenge 2017. Eindhoven University of Technology (2017). \url{https://research.tue.nl/en/datasets/bpi-challenge-2017}
+
+
+
+\end{thebibliography}
+\end{document}
