@@ -1,6 +1,5 @@
 import logging
 
-import numpy as np
 import pandas as pd
 import pm4py
 
@@ -10,6 +9,9 @@ from spi_time_series.data.schemas import (
     RawData,
     TraceSample,
     WindowGenerator,
+)
+from spi_time_series.preprocessing.window_generators import (
+    sliding_window_factory,
 )
 
 logger = logging.getLogger(__name__)
@@ -113,77 +115,10 @@ def split_data(
     return train_df, test_df
 
 
-def sliding_window_factory(
-    min_length: int = 1,
-    max_length: int | None = None,
-) -> WindowGenerator:
-    """
-    Create a sliding window generator for trace prefixes.
-
-    The generated function yields temporally ordered indice of subtraces
-    constrained by the provided minimum and maximum lengths.
-
-    Args:
-        min_length:
-            Minimum number of events required in a window (must be >= 1).
-
-        max_length:
-            Maximum number of events allowed in a window. Set to None for
-            no maximum length. If provided, must be >= min_length.
-
-    Returns:
-        A callable that generates trace windows from a trace numpy array.
-
-    Raises:
-        ValueError: If ``min_length < 1`` or ``max_length < min_length``.
-    """
-    if min_length < 1:
-        raise ValueError(f"min_length must be >= 1, got {min_length}")
-    if max_length is not None and max_length < min_length:
-        raise ValueError(
-            f"max_length ({max_length}) must be >= min_length ({min_length})"
-        )
-
-    logger.info(
-        "Creating sliding window generator (min_length=%d, max_length=%s)",
-        min_length,
-        max_length,
-    )
-
-    def sliding_window(trace: np.ndarray) -> np.ndarray:
-        n_events: int = trace.shape[0]
-
-        logger.debug(
-            "Building windows for trace with %d events "
-            "(min_length=%d, max_length=%s)",
-            n_events,
-            min_length,
-            max_length,
-        )
-
-        end_idx = np.arange(min_length, n_events + 1)
-
-        if max_length is None:
-            start_idx = np.zeros_like(end_idx)
-        else:
-            start_idx = np.maximum(end_idx - max_length, 0)
-
-        windows = np.column_stack((start_idx, end_idx))
-
-        logger.debug(
-            "Generated %d windows for trace with %d events",
-            windows.shape[0],
-            n_events,
-        )
-
-        return windows
-
-    return sliding_window
-
-
 def _build_trace_samples(
     df: pd.DataFrame,
     window_generator: WindowGenerator,
+    col_idx_mapping: dict[str, int],
 ) -> list[TraceSample]:
     """
     Generate trace samples from an event log.
@@ -196,7 +131,7 @@ def _build_trace_samples(
     traces: list[TraceSample] = []
     for case_id, trace in df.groupby("case:concept:name", sort=False):
         data = trace.to_numpy()
-        prefix_indexes = window_generator(data)
+        prefix_indexes = window_generator(data, col_idx_mapping)
         traces.append(
             TraceSample(
                 case_id=str(case_id),
@@ -254,9 +189,9 @@ def preprocess(
 
     # Build prefix samples for both training and testing sets.
     preprocessed_data = PreprocessedData(
-        train_log=_build_trace_samples(train_df, prefix_generator),
+        train_log=_build_trace_samples(train_df, prefix_generator, col_idx),
         num_train_cases=len(train_df["case:concept:name"].unique()),
-        test_log=_build_trace_samples(test_df, prefix_generator),
+        test_log=_build_trace_samples(test_df, prefix_generator, col_idx),
         num_test_cases=len(test_df["case:concept:name"].unique()),
         col_idx=col_idx,
     )

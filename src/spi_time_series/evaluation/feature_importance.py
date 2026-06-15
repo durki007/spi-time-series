@@ -83,7 +83,6 @@ def evaluate_feature_importance_per_prefix(
 
             per_model_metrics[int(pl_val)].update(
                 {
-                    "feature": features.X_test.columns,
                     "importance_mean": importance_g.importances_mean,
                     "importance_std": importance_g.importances_std,
                 }
