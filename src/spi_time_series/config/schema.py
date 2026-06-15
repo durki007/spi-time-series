@@ -53,7 +53,7 @@ _FEATURES = {
 class ModelConfig(BaseModel):
     model_config = ConfigDict(frozen=True, populate_by_name=True)
 
-    model_type: str = Field(alias="type")
+    model_type: str
     params: dict[str, int | float | str | bool | None] = Field(
         default_factory=dict
     )

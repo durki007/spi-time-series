@@ -22,7 +22,7 @@ def regression_raw():
         },
         "models": {
             "ridge": {
-                "type": "Ridge",
+                "model_type": "Ridge",
                 "params": {},
                 "param_grid": {"alpha": [0.1, 1.0]},
             }
@@ -37,7 +37,7 @@ def classification_raw(regression_raw):
     raw["search"]["search_sample_size"] = 1000
     raw["models"] = {
         "lr": {
-            "type": "LogisticRegression",
+            "model_type": "LogisticRegression",
             "params": {"max_iter": 100},
             "param_grid": {"C": [0.1, 1.0]},
         }

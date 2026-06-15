@@ -36,7 +36,7 @@ pca_config:
 
 models:
   logistic_regression:
-    type: LogisticRegression
+    model_type: LogisticRegression
     params:
       max_iter: 5000
       solver: saga
@@ -45,7 +45,7 @@ models:
       C: [0.0001, 0.001, 0.01, 0.1, 1.0, 5.0, 10.0, 50.0, 100.0, 1000.0]
 
   random_forest:
-    type: RandomForestClassifier
+    model_type: RandomForestClassifier
     params:
       n_jobs: -1
       random_state: 42
@@ -56,7 +56,7 @@ models:
       max_features: ["sqrt", 0.5]
 
   hist_gradient_boosting:
-    type: HistGradientBoostingClassifier
+    model_type: HistGradientBoostingClassifier
     params:
       random_state: 42
     param_grid:

@@ -25,14 +25,14 @@ def test_invalid_task_raises(regression_raw):
 
 
 def test_unknown_model_type_raises(regression_raw):
-    regression_raw["models"]["ridge"]["type"] = "SVM"
+    regression_raw["models"]["ridge"]["model_type"] = "SVM"
     with pytest.raises(ValidationError, match="SVM"):
         RunConfig.model_validate(regression_raw)
 
 
 def test_task_model_mismatch_raises(regression_raw):
     regression_raw["models"]["lr"] = {
-        "type": "LogisticRegression",
+        "model_type": "LogisticRegression",
         "params": {},
         "param_grid": {"C": [0.1]},
     }
@@ -84,7 +84,7 @@ def test_null_top_k_allowed(regression_raw):
 
 def test_null_in_param_grid_allowed(regression_raw):
     regression_raw["models"]["rf"] = {
-        "type": "RandomForestRegressor",
+        "model_type": "RandomForestRegressor",
         "params": {},
         "param_grid": {"max_depth": [None, 5, 10]},
     }

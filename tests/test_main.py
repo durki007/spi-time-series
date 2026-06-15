@@ -62,7 +62,7 @@ def regression_config(tmp_path: Path) -> Path:
         },
         "models": {
             "ridge": {
-                "type": "Ridge",
+                "model_type": "Ridge",
                 "params": {},
                 "param_grid": {"alpha": [0.1]},
             }
