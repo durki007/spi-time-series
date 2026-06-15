@@ -21,7 +21,8 @@ features:
     - BasicControlFlowFeatures
     - OfferFeatures
     - InteractionFeatures
-    - WaitingStateFeatures  drop_features: []
+    - WaitingStateFeatures
+  exclude_features: []
 
 search:
   n_iter: 10

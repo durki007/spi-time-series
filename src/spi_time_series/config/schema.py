@@ -132,7 +132,7 @@ class FeaturesConfig(BaseModel):
     enabled_features: list[str] = Field(
         default_factory=lambda: ["BasicControlFlowFeatures"]
     )
-    drop_features: list[str] = Field(
+    exclude_features: list[str] = Field(
         default_factory=list,
         description=(
             "Column names to drop from the extracted feature matrices "

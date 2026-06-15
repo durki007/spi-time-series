@@ -20,7 +20,7 @@ features:
   enabled_features:
     - BasicControlFlowFeatures
     - ActiveCaseCountFeature
-  drop_features: []
+  exclude_features: []
 
 search:
   n_iter: 10

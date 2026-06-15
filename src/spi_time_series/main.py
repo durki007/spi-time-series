@@ -173,13 +173,13 @@ def _build_default_feature_extractor(config: RunConfig) -> FeatureExtractor:
         return extract_features_builder(
             feature_list,
             remaining_time_target,
-            drop_features=config.features.drop_features,
+            exclude_features=config.features.exclude_features,
         )
     else:
         return extract_features_builder(
             feature_list,
             outcome_target,
-            drop_features=config.features.drop_features,
+            exclude_features=config.features.exclude_features,
         )
 
 
