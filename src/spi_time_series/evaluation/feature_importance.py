@@ -71,8 +71,6 @@ def evaluate_feature_importance_per_prefix(
             y_test_g = features.y_test.loc[group_idx]
             X_test_g = features.X_test.loc[group_idx]
 
-            per_model_metrics[int(pl_val)] = {"n_prefixes": len(y_test_g)}
-
             importance_g = permutation_importance(
                 pipeline,
                 X_test_g,
@@ -82,13 +80,11 @@ def evaluate_feature_importance_per_prefix(
                 n_jobs=-1,
             )
 
-            per_model_metrics[int(pl_val)].update(
-                {
-                    "feature": list(features.X_test.columns),
-                    "importance_mean": list(importance_g.importances_mean),
-                    "importance_std": list(importance_g.importances_std),
-                }
-            )
+            per_model_metrics[int(pl_val)] = {
+                "feature": list(features.X_test.columns),
+                "importance_mean": list(importance_g.importances_mean),
+                "importance_std": list(importance_g.importances_std),
+            }
 
         prefix_feature_importance[model_name] = per_model_metrics
 
