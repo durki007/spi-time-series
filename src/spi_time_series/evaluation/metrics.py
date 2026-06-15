@@ -103,10 +103,15 @@ def evaluate(
             len(prefix_lengths),
         )
 
+    prefix_counts: dict[int, int] = {
+        int(pl): len(idx) for pl, idx in groups.items()
+    }
+
     return EvaluationReport(
         prefix_metrics=all_metrics,
         model_names=model_names,
         prefix_lengths=prefix_lengths,
+        prefix_counts=prefix_counts,
     )
 
 
@@ -254,15 +259,24 @@ def compare_models(
     metric: str = _select_ranking_metric(task)
 
     # ---- 1. Compute per-model aggregate scores & rank ---------------------
+    # Weight each prefix-length score by its sample count so that
+    # metrics computed on many test instances carry more weight than
+    # those computed on only a handful of instances.
     aggregates: list[tuple[str, float]] = []
     for model_name, pm in report.prefix_metrics.items():
-        values: list[float] = [m[metric] for m in pm.values() if metric in m]
-        if not values:
+        total_weight: float = 0.0
+        weighted_sum: float = 0.0
+        for pl, m in pm.items():
+            if metric in m:
+                count: int = report.prefix_counts.get(pl, 1)
+                weighted_sum += m[metric] * count
+                total_weight += count
+        if total_weight == 0:
             logger.warning(
                 "Model '%s' has no '%s' values; skipping.", model_name, metric
             )
             continue
-        aggregates.append((model_name, sum(values) / len(values)))
+        aggregates.append((model_name, weighted_sum / total_weight))
 
     if not aggregates:
         logger.warning("No models with metric '%s' available.", metric)

@@ -59,7 +59,18 @@ class ModelArtifact:
 
 @dataclass
 class EvaluationReport:
-    """Evaluation metrics per model name and prefix length."""
+    """Evaluation metrics per model name and prefix length.
+
+    Attributes:
+        prefix_metrics: Per-model, per-prefix-length metric dictionaries
+            (``{model_name: {prefix_length: {metric: value}}}``).
+        model_metrics: Per-model metric dictionaries (``{model_name: {metric: value}}``).
+        model_names: Ordered list of evaluated model names.
+        prefix_lengths: Sorted list of prefix lengths present in the test set.
+        prefix_counts: Number of test samples per prefix length
+            (``{prefix_length: count}``).  Used to compute sample-weighted
+            aggregate scores in :func:`~spi_time_series.evaluation.metrics.compare_models`.
+    """
 
     # metrics per model per prefix
     prefix_metrics: dict[str, dict[int, dict[str, float]]] = field(
@@ -69,6 +80,7 @@ class EvaluationReport:
     model_metrics: dict[str, dict[str, float]] = field(default_factory=dict)
     model_names: list[str] = field(default_factory=list)
     prefix_lengths: list[int] = field(default_factory=list)
+    prefix_counts: dict[int, int] = field(default_factory=dict)
 
 
 @dataclass

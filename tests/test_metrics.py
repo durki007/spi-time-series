@@ -8,7 +8,7 @@ from spi_time_series.data.schemas import (
     FeatureSet,
     ModelArtifact,
 )
-from spi_time_series.evaluation.metrics import evaluate
+from spi_time_series.evaluation.metrics import compare_models, evaluate
 
 _PREFIX_COL = "BasicControlFlowFeatures__prefix_length"
 
@@ -249,3 +249,111 @@ def test_multiple_models_all_evaluated():
     report = evaluate(artifact, fs, "regression")
     assert "fast" in report.prefix_metrics
     assert "slow" in report.prefix_metrics
+
+
+# ---------------------------------------------------------------------------
+# prefix_counts
+# ---------------------------------------------------------------------------
+
+
+def test_prefix_counts_populated():
+    """evaluate() stores the number of test samples per prefix length."""
+    fs = _make_feature_set(n_per_prefix=7, prefix_lengths=[1, 3, 5])
+    artifact = _make_artifact({"m": _ConstantPredictor(15.0)})
+    report = evaluate(artifact, fs, "regression")
+    assert report.prefix_counts == {1: 7, 3: 7, 5: 7}
+
+
+# ---------------------------------------------------------------------------
+# compare_models – weighted averaging
+# ---------------------------------------------------------------------------
+
+
+def test_compare_models_weighted_avg_equal_counts():
+    """When all prefix lengths have equal sample counts, the weighted
+    average equals the simple average."""
+    fs = _make_feature_set(n_per_prefix=10, prefix_lengths=[1, 2, 3])
+    artifact = _make_artifact({"m": _ConstantPredictor(20.0)})
+    report = evaluate(artifact, fs, "regression")
+    result = compare_models(report, "regression")
+    assert result is not None
+
+    # The simple mean should equal the weighted mean (all counts = 10)
+    pm = report.prefix_metrics["m"]
+    simple_mean = sum(m["rmse"] for m in pm.values()) / len(pm)
+    assert result.best_model_score == pytest.approx(simple_mean)
+
+
+def test_compare_models_weighted_avg_differs_when_unequal():
+    """When prefix lengths have unequal sample counts, a prefix with many
+    samples influences the aggregate more than a prefix with few samples."""
+    # Build a custom FeatureSet: prefix 1 has 1000 samples, prefix 2 has 2.
+    n_big, n_small = 1000, 2
+    pl_big, pl_small = 1, 99
+    rows: list[dict] = []
+    targets: list[float] = []
+
+    for _ in range(n_big):
+        rows.append({_PREFIX_COL: pl_big, "f": 0.0})
+        targets.append(10.0)  # y_true = 10, perfect_pred → rmse=0
+
+    for _ in range(n_small):
+        rows.append({_PREFIX_COL: pl_small, "f": 0.0})
+        targets.append(100.0)  # y_true = 100 → rmse = 10 (offset by 10)
+
+    X = pd.DataFrame(rows).reset_index(drop=True)
+    y = pd.Series(targets, name="remaining_time_hours")
+    fs = FeatureSet(
+        X_train=X,
+        X_test=X,
+        y_train=y,
+        y_test=y,
+        feature_names=list(X.columns),
+    )
+
+    artifact = _make_artifact({"m": _ConstantPredictor(10.0)})
+    report = evaluate(artifact, fs, "regression")
+
+    # Verify the underlying metrics
+    assert report.prefix_metrics["m"][pl_big]["rmse"] == pytest.approx(0.0)
+    assert report.prefix_metrics["m"][pl_small]["rmse"] == pytest.approx(10.0)
+
+    # Simple (unweighted) mean
+    simple_mean = (0.0 + 10.0) / 2.0  # = 5.0
+    # Weighted mean: (0*1000 + 10*2) / 1002 ≈ 0.01996
+    weighted_mean = (0.0 * n_big + 10.0 * n_small) / (n_big + n_small)
+
+    result = compare_models(report, "regression")
+    assert result is not None
+    # Weighted mean should be very close to 0, NOT the simple mean of 5.0
+    assert result.best_model_score == pytest.approx(weighted_mean)
+    assert abs(result.best_model_score - simple_mean) > 1.0  # clearly different
+
+
+def test_compare_models_returns_none_for_empty_report():
+    """compare_models returns None when prefix_metrics is empty."""
+    empty = EvaluationReport()
+    assert compare_models(empty, "regression") is None
+
+
+def test_compare_models_f1_weighted_for_classification():
+    """Classification task uses f1_weighted for ranking."""
+    fs = _make_feature_set(
+        n_per_prefix=5, prefix_lengths=[1, 2], task="classification"
+    )
+    artifact = _make_artifact({"perfect": _ConstantPredictor(1)})
+    report = evaluate(artifact, fs, "classification")
+    result = compare_models(report, "classification")
+    assert result is not None
+    assert result.ranking_metric == "f1_weighted"
+    assert result.best_model_score == pytest.approx(1.0)
+
+
+def test_compare_models_regression_uses_rmse():
+    """Regression task uses rmse for ranking."""
+    fs = _make_feature_set(n_per_prefix=5, prefix_lengths=[1])
+    artifact = _make_artifact({"m": _ConstantPredictor(10.0)})
+    report = evaluate(artifact, fs, "regression")
+    result = compare_models(report, "regression")
+    assert result is not None
+    assert result.ranking_metric == "rmse"

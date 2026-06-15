@@ -53,6 +53,9 @@ def _merge_evaluations(reports: list[EvaluationReport]) -> EvaluationReport:
         for pl in report.prefix_lengths:
             if pl not in merged.prefix_lengths:
                 merged.prefix_lengths.append(pl)
+        for pl, count in report.prefix_counts.items():
+            if pl not in merged.prefix_counts:
+                merged.prefix_counts[pl] = count
     return merged
 
 
