@@ -148,9 +148,14 @@ def _detect_plateau_prefix(
     metric: str,
     *,
     plateau_threshold: float = 0.05,
+    plateau_window: int = 3,
 ) -> BestPrefixInfo:
     """Walk prefix lengths in ascending order and return the first length
-    where the relative improvement of *metric* drops below *plateau_threshold*.
+    where the **average** relative improvement of *metric* over a sliding
+    window of size *plateau_window* drops below *plateau_threshold*.
+
+    Using a window (instead of comparing two consecutive points) makes the
+    plateau detection more robust against noisy or sparse prefix lengths.
 
     Parameters
     ----------
@@ -163,6 +168,10 @@ def _detect_plateau_prefix(
     plateau_threshold:
         Fractional improvement below which the curve is considered to have
         plateaued (default ``0.05`` = 5 %).
+    plateau_window:
+        Number of consecutive improvement steps to average when checking for
+        a plateau (default ``3``).  ``window=1`` recovers the old pairwise
+        behavior.
 
     Returns
     -------
@@ -195,22 +204,31 @@ def _detect_plateau_prefix(
 
     better_down: bool = _lower_is_better(metric)
 
+    # Pre-compute relative improvements between every consecutive pair
+    improvements: list[float] = []
     for i in range(1, len(ordered)):
-        prev_pl, prev_val = ordered[i - 1]
-        curr_pl, curr_val = ordered[i]
+        prev_val: float = ordered[i - 1][1]
+        curr_val: float = ordered[i][1]
 
         delta: float = (
             prev_val - curr_val if better_down else curr_val - prev_val
         )
         denom: float = abs(prev_val) if abs(prev_val) > 1e-12 else 1.0
-        rel_improvement: float = delta / denom
+        improvements.append(delta / denom)
 
-        if rel_improvement < plateau_threshold:
+    # Slide a window over the improvements and check the average
+    window: int = min(plateau_window, len(improvements))
+    for i in range(window - 1, len(improvements)):
+        window_slice: list[float] = improvements[i - window + 1 : i + 1]
+        avg_improvement: float = sum(window_slice) / window
+        if avg_improvement < plateau_threshold:
+            # Plateau at the prefix at the *start* of the window
+            plateau_pl, plateau_val = ordered[i - window + 1]
             return BestPrefixInfo(
                 model_name=model_name,
-                plateau_prefix=prev_pl,
+                plateau_prefix=plateau_pl,
                 metric=metric,
-                value=prev_val,
+                value=plateau_val,
                 plateau_threshold=plateau_threshold,
             )
 
@@ -230,6 +248,7 @@ def compare_models(
     task: TaskType,
     *,
     plateau_threshold: float = 0.05,
+    plateau_window: int = 3,
 ) -> ModelComparisonResult | None:
     """Aggregate per-prefix evaluation metrics into a structured model
     comparison, identifying the best model and the optimal prefix length
@@ -245,6 +264,10 @@ def compare_models(
     plateau_threshold:
         Fractional improvement threshold for plateau detection
         (default ``0.05`` = 5 %).
+    plateau_window:
+        Number of consecutive improvement steps averaged when checking
+        for a plateau (default ``3``).  Larger values make detection
+        more robust against noise.
 
     Returns
     -------
@@ -306,6 +329,7 @@ def compare_models(
             prefix_metrics=pm,
             metric=metric,
             plateau_threshold=plateau_threshold,
+            plateau_window=plateau_window,
         )
         logger.info(
             "Model '%s' plateau at prefix_length=%d (%s=%.4f)",

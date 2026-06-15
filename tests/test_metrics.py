@@ -357,3 +357,100 @@ def test_compare_models_regression_uses_rmse():
     result = compare_models(report, "regression")
     assert result is not None
     assert result.ranking_metric == "rmse"
+
+
+# ---------------------------------------------------------------------------
+# compare_models – plateau detection (windowed)
+# ---------------------------------------------------------------------------
+
+
+def _build_rmse_report(
+    model_name: str, prefix_rmse: dict[int, float]
+) -> EvaluationReport:
+    """Build a minimal EvaluationReport with the given per-prefix RMSE values.
+
+    Each prefix gets an equal sample count of 100 so weighted/unweighted
+    averages coincide (weights don't matter for plateau tests).
+    """
+    prefix_metrics: dict[str, dict[int, dict[str, float]]] = {
+        model_name: {pl: {"rmse": v} for pl, v in prefix_rmse.items()}
+    }
+    return EvaluationReport(
+        prefix_metrics=prefix_metrics,
+        model_names=[model_name],
+        prefix_lengths=sorted(prefix_rmse),
+        prefix_counts={pl: 100 for pl in prefix_rmse},
+    )
+
+
+def test_plateau_window_1_recovers_pairwise_behavior():
+    """With window=1, the plateau detection is identical to the old
+    consecutive-pair behavior."""
+    # RMSE curve that plateaus early (small improvement between 1→2)
+    report = _build_rmse_report("m", {1: 5.0, 2: 4.9, 3: 3.0})
+    # Pair 1→2: improvement = (5.0 - 4.9) / 5.0 = 2% → below 5% threshold
+    result = compare_models(report, "regression", plateau_window=1)
+    assert result is not None
+    bp = result.best_prefixes["m"]
+    assert bp.plateau_prefix == 1  # plateau at the start of the tiny step
+
+    # RMSE curve that keeps improving
+    report2 = _build_rmse_report("m", {1: 5.0, 2: 4.0, 3: 3.0})
+    result2 = compare_models(report2, "regression", plateau_window=1)
+    assert result2 is not None
+    bp2 = result2.best_prefixes["m"]
+    assert bp2.plateau_prefix == 3  # never plateaued → last prefix
+
+
+def test_plateau_window_ignores_isolated_noise():
+    """A single noisy prefix length (one small improvement step) should not
+    trigger a false plateau when the window size is > 1."""
+    # RMSE curve: steady improvement, one flat step, then improvement again
+    # 1→2: 5.0→4.0 = 20%  (big improvement)
+    # 2→3: 4.0→3.95 = 1.25% (flat step — would trigger with window=1)
+    # 3→4: 3.95→3.0 = 24% (big improvement again)
+    # 4→5: 3.0→2.95 = 1.67% (flat)
+    # 5→6: 2.95→2.9 = 1.69% (flat)
+    # With window=3, the average of [20, 1.25, 24] = 15% — above threshold
+    # Only at the end where [24, 1.67, 1.69] avg ≈ 9% — still above 5%
+    report = _build_rmse_report(
+        "m", {1: 5.0, 2: 4.0, 3: 3.95, 4: 3.0, 5: 2.95, 6: 2.9}
+    )
+    result = compare_models(report, "regression", plateau_window=3)
+    assert result is not None
+    bp = result.best_prefixes["m"]
+    # Should NOT plateau at prefix 2 (where the flat step is)
+    assert bp.plateau_prefix != 2
+    # With window=3 and the given curve, should reach the end
+    assert bp.plateau_prefix == 6
+
+
+def test_plateau_window_detects_genuine_plateau():
+    """When several consecutive steps show minimal improvement, a genuine
+    plateau is detected."""
+    # RMSE curve with a clear plateau at the end
+    # 1→2: 10→8 = 20%
+    # 2→3: 8→7.9 = 1.25%
+    # 3→4: 7.9→7.81 = 1.14%
+    # 4→5: 7.81→7.73 = 1.02%
+    # Window=3 average of [1.25, 1.14, 1.02] = 1.14% → below 5%
+    report = _build_rmse_report(
+        "m", {1: 10.0, 2: 8.0, 3: 7.9, 4: 7.81, 5: 7.73}
+    )
+    result = compare_models(report, "regression", plateau_window=3)
+    assert result is not None
+    bp = result.best_prefixes["m"]
+    # Plateau at prefix 2 (start of the flat window)
+    assert bp.plateau_prefix == 2
+
+
+def test_plateau_window_larger_than_data_falls_back():
+    """When the window is larger than the number of improvements, the
+    effective window shrinks to fit."""
+    # Only 3 points → 2 improvements; window=5 becomes effectively window=2
+    report = _build_rmse_report("m", {1: 10.0, 2: 9.9, 3: 9.85})
+    result = compare_models(report, "regression", plateau_window=5)
+    assert result is not None
+    bp = result.best_prefixes["m"]
+    # (10-9.9)/10 = 1%, (9.9-9.85)/9.9 ≈ 0.5% → avg ≈ 0.75%, below 5%
+    assert bp.plateau_prefix == 1
