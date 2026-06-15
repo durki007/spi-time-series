@@ -34,13 +34,22 @@ def _merge_evaluations(reports: list[EvaluationReport]) -> EvaluationReport:
     if not reports:
         raise ValueError("No evaluators produced a report.")
     merged = EvaluationReport(
-        prefix_metrics={}, model_metrics={}, model_names=[], prefix_lengths=[]
+        prefix_metrics={},
+        model_metrics={},
+        model_names=[],
+        prefix_lengths=[],
     )
     for report in reports:
         for model, by_prefix in report.prefix_metrics.items():
             merged.prefix_metrics.setdefault(model, {})
             for prefix, metrics in by_prefix.items():
                 merged.prefix_metrics[model].setdefault(prefix, {}).update(
+                    metrics
+                )
+        for model, by_prefix in report.feature_importance.items():
+            merged.feature_importance.setdefault(model, {})
+            for prefix, metrics in by_prefix.items():
+                merged.feature_importance[model].setdefault(prefix, {}).update(
                     metrics
                 )
         for model, by_metric in report.model_metrics.items():

@@ -89,7 +89,7 @@ def evaluate_feature_importance_per_prefix(
         prefix_feature_importance[model_name] = per_model_metrics
 
     return EvaluationReport(
-        prefix_metrics=prefix_feature_importance,
+        feature_importance=prefix_feature_importance,
         model_names=model_names,
         prefix_lengths=prefix_lengths,
     )
@@ -139,7 +139,7 @@ def report_prefix_importance_visualizations(
             "visualizations."
         )
         return
-    if not report.prefix_metrics:
+    if not report.feature_importance:
         logger.info(
             "No per-prefix feature importance data found; "
             "skipping visualization generation."
@@ -150,7 +150,7 @@ def report_prefix_importance_visualizations(
     vis_dir: Path = output_dir / "feature_importance"
     vis_dir.mkdir(parents=True, exist_ok=True)
 
-    for model_name in report.prefix_metrics:
+    for model_name in report.feature_importance:
         model_df: pd.DataFrame = importance_df.query(f"model == '{model_name}'")
         if model_df.empty:
             logger.warning(
@@ -178,7 +178,7 @@ def report_prefix_importance_visualizations(
 def _prefix_importance_to_dataframe(report: EvaluationReport):
     records = []
 
-    for model, prefix_data in report.prefix_metrics.items():
+    for model, prefix_data in report.feature_importance.items():
         for prefix_length, metrics in prefix_data.items():
             for feature, mean, std in zip(  # type: ignore[call-overload]
                 metrics["feature"],
