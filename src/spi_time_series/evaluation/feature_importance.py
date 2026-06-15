@@ -123,26 +123,58 @@ def report_feature_importance(
         )
 
 
-def report_feature_importance_per_prefix(
-    artifact: ModelArtifact, report: EvaluationReport, output_dir: Path | None
-):
+def report_prefix_importance_visualizations(
+    artifact: ModelArtifact,
+    report: EvaluationReport,
+    output_dir: Path | None,
+) -> None:
+    """Reporter: generate heatmap and trajectory plots for per-prefix feature
+    importance and save them under ``output_dir / "feature_importance"``.
+
+    This reporter expects the evaluation report to contain per-prefix feature
+    importance metrics (populated by ``evaluate_feature_importance_per_prefix``).
+    When ``output_dir`` is ``None`` or the report contains no ``prefix_metrics``,
+    the function logs a warning and returns early.
+    """
     if output_dir is None:
-        return
-    reports_dir = output_dir / "feature_importance"
-    reports_dir.mkdir(parents=True, exist_ok=True)
-
-    # per prefix importance
-    importance_df = _prefix_importance_to_dataframe(report)
-    for model in report.prefix_metrics.keys():
-        save_prefix_importance_heatmap(
-            importance_df.query(f"model == '{model}'"),
-            reports_dir / "heatmap.png",
+        logger.warning(
+            "No output directory provided; skipping prefix importance "
+            "visualizations."
         )
+        return
+    if not report.prefix_metrics:
+        logger.info(
+            "No per-prefix feature importance data found; "
+            "skipping visualization generation."
+        )
+        return
 
-        save_prefix_importance_trajectories(
-            importance_df.query(f"model == '{model}'"),
-            reports_dir / "trajectories.png",
+    importance_df: pd.DataFrame = _prefix_importance_to_dataframe(report)
+    vis_dir: Path = output_dir / "feature_importance"
+    vis_dir.mkdir(parents=True, exist_ok=True)
+
+    for model_name in report.prefix_metrics:
+        model_df: pd.DataFrame = importance_df.query(f"model == '{model_name}'")
+        if model_df.empty:
+            logger.warning(
+                "No per-prefix importance rows for model '%s'; skipping.",
+                model_name,
+            )
+            continue
+
+        heatmap_path: Path = save_prefix_importance_heatmap(
+            model_df,
+            vis_dir / f"{model_name}_heatmap.png",
+        )
+        logger.info("Prefix importance heatmap saved to %s", heatmap_path)
+
+        trajectory_path: Path = save_prefix_importance_trajectories(
+            model_df,
+            vis_dir / f"{model_name}_trajectories.png",
             smooth=True,
+        )
+        logger.info(
+            "Prefix importance trajectories saved to %s", trajectory_path
         )
 
 

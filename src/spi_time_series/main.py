@@ -22,12 +22,12 @@ from spi_time_series.data.schemas import (
 )
 from spi_time_series.data.types import FeatureExtractor
 from spi_time_series.evaluation.feature_importance import (
-    _prefix_importance_to_dataframe,
     evaluate_feature_importance,
     evaluate_feature_importance_per_prefix,
     report_feature_importance,
-    save_prefix_importance_heatmap,
-    save_prefix_importance_trajectories,
+)
+from spi_time_series.evaluation.feature_importance import (
+    report_prefix_importance_visualizations as _save_prefix_importance_visualizations,
 )
 from spi_time_series.evaluation.metrics import (
     _make_model_comparison_reporter,
@@ -195,6 +195,9 @@ def _save_report(
 ) -> None:
     """Reporter: write EvaluationReport to a CSV in output_dir/reports/."""
     if output_dir is None:
+        logger.warning(
+            "No output directory provided; skipping evaluation report."
+        )
         return
 
     rows = [
@@ -215,57 +218,6 @@ def _save_report(
     path = reports_dir / "evaluation_report.csv"
     df.to_csv(path, index=False)
     logger.info("Evaluation report saved to %s", path)
-
-
-def _save_prefix_importance_visualizations(
-    artifact: ModelArtifact,
-    report: EvaluationReport,
-    output_dir: Path | None,
-) -> None:
-    """Reporter: generate heatmap and trajectory plots for per-prefix feature
-    importance and save them under ``output_dir / "feature_importance"``.
-
-    This reporter expects the evaluation report to contain per-prefix feature
-    importance metrics (populated by ``evaluate_feature_importance_per_prefix``).
-    When ``output_dir`` is ``None`` or the report contains no ``prefix_metrics``,
-    the function returns silently.
-    """
-    if output_dir is None:
-        return
-    if not report.prefix_metrics:
-        logger.info(
-            "No per-prefix feature importance data found; "
-            "skipping visualization generation."
-        )
-        return
-
-    importance_df: pd.DataFrame = _prefix_importance_to_dataframe(report)
-    vis_dir: Path = output_dir / "feature_importance"
-    vis_dir.mkdir(parents=True, exist_ok=True)
-
-    for model_name in report.prefix_metrics:
-        model_df: pd.DataFrame = importance_df.query(f"model == '{model_name}'")
-        if model_df.empty:
-            logger.warning(
-                "No per-prefix importance rows for model '%s'; skipping.",
-                model_name,
-            )
-            continue
-
-        heatmap_path: Path = save_prefix_importance_heatmap(
-            model_df,
-            vis_dir / f"{model_name}_heatmap.png",
-        )
-        logger.info("Prefix importance heatmap saved to %s", heatmap_path)
-
-        trajectory_path: Path = save_prefix_importance_trajectories(
-            model_df,
-            vis_dir / f"{model_name}_trajectories.png",
-            smooth=True,
-        )
-        logger.info(
-            "Prefix importance trajectories saved to %s", trajectory_path
-        )
 
 
 # ---------------------------------------------------------------------------
