@@ -80,6 +80,13 @@ def search_hyperparams(
         search_config.search_sample_size is not None
         and search_config.search_sample_size < len(X_train)
     ):
+        if not logging.getLogger(__name__).isEnabledFor(logging.INFO):
+            pass
+        logger.info(
+            "Subsampling X_train from %d to %d rows for hyperparameter search",
+            len(X_train),
+            search_config.search_sample_size,
+        )
         X_train = X_train.sample(
             n=search_config.search_sample_size,
             random_state=search_config.random_state,

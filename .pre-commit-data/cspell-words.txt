@@ -13,3 +13,4 @@ cmap
 viridis
 cbar
 sharey
+aggfunc

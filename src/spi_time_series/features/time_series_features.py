@@ -74,6 +74,8 @@ class ActiveCaseCountFeature:
     ) -> np.ndarray:
         ts = pd.to_datetime(prefix[-1, col_idx_mapping["time:timestamp"]])
 
+        if self._ts_array.size == 0:
+            return np.zeros(len(self.feature_names), dtype=np.float32)
         idx = np.searchsorted(self._ts_array, ts, side="right") - 1
         if idx < 0:
             idx = 0
@@ -208,6 +210,15 @@ def preprocess_time_series(event_log_df: pd.DataFrame) -> pd.DataFrame:
 
     min_start_time = start_times.min()
     max_end_time = end_times.max()
+
+    span_hours = (max_end_time - min_start_time).total_seconds() / 3600.0
+    if span_hours > 876_000:  # ~100 years
+        raise ValueError(
+            f"Timestamp span of {span_hours:.0f} hours exceeds maximum "
+            f"allowed range (876,000 hours). "
+            f"Check for corrupted timestamps (min={min_start_time}, "
+            f"max={max_end_time})."
+        )
 
     logger.debug("Time range: %s → %s", min_start_time, max_end_time)
 

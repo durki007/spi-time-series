@@ -1,6 +1,6 @@
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Any, Protocol
 
 import numpy as np
 import pandas as pd
@@ -73,11 +73,10 @@ class EvaluationReport:
     """
 
     # metrics per model per prefix
-    prefix_metrics: dict[str, dict[int, dict[str, float]]] = field(
+    prefix_metrics: dict[str, dict[int, dict[str, Any]]] = field(
         default_factory=dict
     )
-    # metrics per model
-    model_metrics: dict[str, dict[str, float]] = field(default_factory=dict)
+    model_metrics: dict[str, dict[str, Any]] = field(default_factory=dict)
     model_names: list[str] = field(default_factory=list)
     prefix_lengths: list[int] = field(default_factory=list)
     prefix_counts: dict[int, int] = field(default_factory=dict)

@@ -299,7 +299,7 @@ def test_compare_models_weighted_avg_differs_when_unequal():
 
     for _ in range(n_small):
         rows.append({_PREFIX_COL: pl_small, "f": 0.0})
-        targets.append(100.0)  # y_true = 100 → rmse = 10 (offset by 10)
+        targets.append(100.0)  # y_true=100, pred=10 → rmse=90
 
     X = pd.DataFrame(rows).reset_index(drop=True)
     y = pd.Series(targets, name="remaining_time_hours")
@@ -316,16 +316,16 @@ def test_compare_models_weighted_avg_differs_when_unequal():
 
     # Verify the underlying metrics
     assert report.prefix_metrics["m"][pl_big]["rmse"] == pytest.approx(0.0)
-    assert report.prefix_metrics["m"][pl_small]["rmse"] == pytest.approx(10.0)
+    assert report.prefix_metrics["m"][pl_small]["rmse"] == pytest.approx(90.0)
 
     # Simple (unweighted) mean
-    simple_mean = (0.0 + 10.0) / 2.0  # = 5.0
-    # Weighted mean: (0*1000 + 10*2) / 1002 ≈ 0.01996
-    weighted_mean = (0.0 * n_big + 10.0 * n_small) / (n_big + n_small)
+    simple_mean = (0.0 + 90.0) / 2.0  # = 45.0
+    # Weighted mean: (0*1000 + 90*2) / 1002 ≈ 0.1796
+    weighted_mean = (0.0 * n_big + 90.0 * n_small) / (n_big + n_small)
 
     result = compare_models(report, "regression")
     assert result is not None
-    # Weighted mean should be very close to 0, NOT the simple mean of 5.0
+    # Weighted mean should be very close to 0, NOT the simple mean of 45.0
     assert result.best_model_score == pytest.approx(weighted_mean)
     assert abs(result.best_model_score - simple_mean) > 1.0  # clearly different
 

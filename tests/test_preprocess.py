@@ -5,8 +5,9 @@ from spi_time_series.data.schemas import RawData, TraceSample
 from spi_time_series.features.time_series_features import preprocess_time_series
 from spi_time_series.preprocessing.preprocess import (
     _build_trace_samples,
-    preprocess,
+    clean_event_log,
     sliding_window_factory,
+    split_data,
 )
 
 # ----------------------------
@@ -134,15 +135,15 @@ def test_build_trace_samples_generates_samples(sample_log):
 
 
 def test_preprocess_pipeline(raw):
-    result = preprocess(raw)
+    cleaned = clean_event_log(raw.event_log)
+    train_df, test_df = split_data(cleaned)
+    prefix_gen = sliding_window_factory()
 
-    train = list(result.train_log)
-    test = list(result.test_log)
+    train = _build_trace_samples(train_df, prefix_gen)
+    test = _build_trace_samples(test_df, prefix_gen)
 
     assert len(train) > 0
     assert len(test) > 0
-
-    # structure checks
     assert isinstance(train[0], TraceSample)
     assert isinstance(test[0], TraceSample)
 

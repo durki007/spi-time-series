@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import seaborn as sns
@@ -15,13 +16,13 @@ from spi_time_series.data.schemas import (
 )
 
 _PREFIX_LENGTH_COL = "BasicControlFlowFeatures__prefix_length"
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 def evaluate_feature_importance(
     artifact: ModelArtifact, features: FeatureSet, task: TaskType
 ) -> EvaluationReport:
-    feature_importance: dict[str, dict[str, float]] = {}
+    feature_importance: dict[str, dict[str, Any]] = {}
     groups: dict = features.X_test.groupby(_PREFIX_LENGTH_COL).groups
     prefix_lengths: list[int] = sorted(int(pl) for pl in groups)
     model_names: list[str] = list(artifact.models)
@@ -39,9 +40,9 @@ def evaluate_feature_importance(
         )
 
         feature_importance[model_name] = {
-            "feature": features.X_test.columns,
-            "importance_mean": importance.importances_mean,
-            "importance_std": importance.importances_std,
+            "feature": list(features.X_test.columns),
+            "importance_mean": list(importance.importances_mean),
+            "importance_std": list(importance.importances_std),
         }
 
     return EvaluationReport(
@@ -54,7 +55,7 @@ def evaluate_feature_importance(
 def evaluate_feature_importance_per_prefix(
     artifact: ModelArtifact, features: FeatureSet, task: TaskType
 ) -> EvaluationReport:
-    prefix_feature_importance: dict[str, dict[int, dict[str, float]]] = {}
+    prefix_feature_importance: dict[str, dict[int, dict[str, Any]]] = {}
 
     groups: dict = features.X_test.groupby(_PREFIX_LENGTH_COL).groups
     prefix_lengths: list[int] = sorted(int(pl) for pl in groups)
@@ -62,7 +63,7 @@ def evaluate_feature_importance_per_prefix(
 
     for model_name, pipeline in artifact.models.items():
         # feature importance per prefix
-        per_model_metrics: dict[int, dict[str, float]] = {}
+        per_model_metrics: dict[int, dict[str, Any]] = {}
         for pl_val, group_idx in tqdm(
             groups.items(),
             desc=f"Feature Importance per prefix for model: {model_name}",
@@ -83,9 +84,9 @@ def evaluate_feature_importance_per_prefix(
 
             per_model_metrics[int(pl_val)].update(
                 {
-                    "feature": features.X_test.columns,
-                    "importance_mean": importance_g.importances_mean,
-                    "importance_std": importance_g.importances_std,
+                    "feature": list(features.X_test.columns),
+                    "importance_mean": list(importance_g.importances_mean),
+                    "importance_std": list(importance_g.importances_std),
                 }
             )
 
@@ -289,10 +290,11 @@ def save_prefix_importance_heatmap(
 
     df = importance_df[importance_df["feature"].isin(top_features)]
 
-    heatmap_df = df.pivot(
+    heatmap_df = df.pivot_table(
         index="feature",
         columns="prefix_length",
         values="importance_mean",
+        aggfunc="mean",
     ).fillna(0)
 
     # Most important at top

@@ -114,10 +114,11 @@ def generate_feature_matrix(
             col_idx_mapping,
         ),
     ) as pool:
+        chunk_size = max(1, len(samples) // (cpu_count() * 4))
         results = pool.imap_unordered(
             _process_sample,
             samples,
-            chunksize=1,
+            chunksize=chunk_size,
         )
 
         for rows, targets in tqdm(

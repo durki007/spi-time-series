@@ -100,8 +100,45 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 # ---------------------------------------------------------------------------
-# Config override helpers
+# YAML duplicate key detection
 # ---------------------------------------------------------------------------
+
+
+def _warn_duplicate_keys(config_path: Path) -> None:
+    import yaml as _yaml
+
+    tracker: dict[int, dict[str, int]] = {}
+
+    class _DupTracker(_yaml.SafeLoader):
+        pass
+
+    def _construct_mapping(loader, node, deep=False):
+        mapping = {}
+        for key_node, value_node in node.value:
+            key = loader.construct_object(key_node, deep=deep)
+            line = key_node.start_mark.line + 1
+            tracker.setdefault(line, {})
+            tracker[line][str(key)] = tracker[line].get(str(key), 0) + 1
+            mapping[key] = loader.construct_object(value_node, deep=deep)
+        return mapping
+
+    _DupTracker.add_constructor(
+        _yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+        _construct_mapping,
+    )
+    try:
+        _yaml.load(config_path.read_text(), Loader=_DupTracker)
+    except Exception:
+        return
+    duplicates = {
+        k for line in tracker.values() for k, cnt in line.items() if cnt > 1
+    }
+    if duplicates:
+        logger.warning(
+            "Duplicate YAML key(s) in %s: %s (last value wins)",
+            config_path.name,
+            ", ".join(sorted(duplicates)),
+        )
 
 
 def _coerce(value: str) -> Any:
@@ -256,6 +293,7 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(1)
 
     raw: dict = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    _warn_duplicate_keys(config_path)
     _apply_overrides(raw, args.override)
 
     try:
