@@ -78,7 +78,7 @@ def filter_dev_cases(
     cutoff = case_starts.quantile(dev_quantile)
     dev_ids = case_starts[case_starts <= cutoff].index
     logger.info(
-        f"Dev mode: keeping {len(dev_ids)} cases (≤ {dev_quantile:.0%} quantile, cutoff {cutoff})"
+        f"Dev mode: keeping {len(dev_ids)} cases (<= {dev_quantile:.0%} quantile, cutoff {cutoff})"
     )
     return df[df["case:concept:name"].isin(dev_ids)]
 

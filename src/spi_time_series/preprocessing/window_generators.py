@@ -119,11 +119,11 @@ def outcome_window_factory(
 
         activities = trace[:, col_idx_mapping["concept:name"]]
         mask = np.isin(activities, OUTCOME_EVENTS)
-        idx_outcome_event = n_events + 1
+        idx_outcome_event = n_events
         if mask.any():
             idx_outcome_event = np.argmax(mask)  # index of first outcome event
 
-        end_idx = np.arange(min_length, idx_outcome_event)
+        end_idx = np.arange(min_length, idx_outcome_event + 1)
 
         if max_length is None:
             start_idx = np.zeros_like(end_idx)
