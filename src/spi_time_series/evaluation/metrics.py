@@ -5,10 +5,15 @@ from pathlib import Path
 import pandas as pd
 from sklearn.metrics import (
     accuracy_score,
+    average_precision_score,
     balanced_accuracy_score,
     f1_score,
     mean_absolute_error,
+    median_absolute_error,
+    precision_score,
     r2_score,
+    recall_score,
+    roc_auc_score,
     root_mean_squared_error,
 )
 
@@ -28,13 +33,48 @@ logger = logging.getLogger(__name__)
 _PREFIX_LENGTH_COL = "BasicControlFlowFeatures__prefix_length"
 
 
+def _macro_roc_auc(y_true, y_score):
+    """Macro-averaged ROC AUC for multi-class via one-vs-rest.
+
+    Computes per-class ROC AUC and returns the unweighted mean across classes.
+    """
+    classes = sorted(set(y_true))
+    scores = []
+    for c in classes:
+        y_bin = pd.Series(
+            [1 if v == c else 0 for v in y_true], index=y_true.index
+        )
+        scores.append(roc_auc_score(y_bin, y_score[:, int(c)]))
+    return float(sum(scores) / len(scores))
+
+
+def _macro_avg_precision(y_true, y_score):
+    """Macro-averaged PR AUC (average precision) for multi-class.
+
+    Computes per-class average precision via one-vs-rest and returns the
+    unweighted mean across classes.
+    """
+    classes = sorted(set(y_true))
+    scores = []
+    for c in classes:
+        y_bin = pd.Series(
+            [1 if v == c else 0 for v in y_true], index=y_true.index
+        )
+        scores.append(average_precision_score(y_bin, y_score[:, int(c)]))
+    return float(sum(scores) / len(scores))
+
+
 def evaluate(
     artifact: ModelArtifact, features: FeatureSet, target_type: TaskType
 ) -> EvaluationReport:
-    """Compute per-model, per-prefix-length regression metrics on the test set.
+    """Compute per-model, per-prefix-length metrics on the test set.
 
-    Metrics: MAE, RMSE, R².
-    R² is nan for single-sample prefix groups (undefined); no exception is raised.
+    Regression metrics: MAE, RMSE, R², median absolute error.
+    Classification metrics: accuracy, F1 (macro/weighted), precision (macro),
+                            recall (macro), ROC AUC, PR AUC.
+
+    R², ROC AUC and PR AUC are nan for single-sample or single-class prefix
+    groups; no exception is raised.
 
     Requires BasicControlFlowFeatures__prefix_length in features.X_test.
     """
@@ -57,6 +97,11 @@ def evaluate(
         logger.info("Evaluating model: %s", model_name)
         y_pred = pd.Series(pipeline.predict(X_test), index=X_test.index)
         model_predictions[model_name] = y_pred
+        y_score = None
+        if target_type == "classification" and hasattr(
+            pipeline, "predict_proba"
+        ):
+            y_score = pipeline.predict_proba(X_test)
 
         model_metrics: dict[int, dict[str, float]] = {}
         for pl_val, group_idx in groups.items():
@@ -73,6 +118,9 @@ def evaluate(
                             root_mean_squared_error(y_true_g, y_pred_g)
                         ),
                         "r2": float(r2_score(y_true_g, y_pred_g)),
+                        "median_ae": float(
+                            median_absolute_error(y_true_g, y_pred_g)
+                        ),
                     }
 
                 elif target_type == "classification":
@@ -97,7 +145,37 @@ def evaluate(
                                 zero_division=0,
                             )
                         ),
+                        "precision_macro": float(
+                            precision_score(
+                                y_true_g,
+                                y_pred_g,
+                                average="macro",
+                                zero_division=0,
+                            )
+                        ),
+                        "recall_macro": float(
+                            recall_score(
+                                y_true_g,
+                                y_pred_g,
+                                average="macro",
+                                zero_division=0,
+                            )
+                        ),
                     }
+                    if y_score is not None:
+                        y_score_g = y_score[group_idx]
+                        try:
+                            model_metrics[int(pl_val)]["roc_auc"] = (
+                                _macro_roc_auc(y_true_g, y_score_g)
+                            )
+                        except Exception:
+                            model_metrics[int(pl_val)]["roc_auc"] = float("nan")
+                        try:
+                            model_metrics[int(pl_val)]["pr_auc"] = (
+                                _macro_avg_precision(y_true_g, y_score_g)
+                            )
+                        except Exception:
+                            model_metrics[int(pl_val)]["pr_auc"] = float("nan")
 
                 else:
                     raise ValueError(f"Unknown target_type: {target_type}")
@@ -147,7 +225,7 @@ def _select_ranking_metric(task: TaskType) -> str:
 
 def _lower_is_better(metric: str) -> bool:
     """Return ``True`` when a smaller value indicates better performance."""
-    return metric in ("mae", "rmse")
+    return metric in ("mae", "rmse", "median_ae")
 
 
 def _detect_plateau_prefix(

@@ -27,6 +27,13 @@ class _ConstantPredictor:
     def predict(self, X):
         return np.full(len(X), self._c)
 
+    def predict_proba(self, X):
+        n = len(X)
+        n_classes = max(int(self._c) + 1, 2)
+        proba = np.zeros((n, n_classes))
+        proba[:, int(self._c)] = 1.0
+        return proba
+
 
 def _make_feature_set(
     n_per_prefix: int = 10,
@@ -105,14 +112,19 @@ def test_report_prefix_lengths_match_data():
     assert sorted(report.prefix_lengths) == [1, 3, 5]
 
 
-def test_regression_report_metrics_contains_mae_rmse_r2():
+def test_regression_report_metrics_contains_mae_rmse_r2_median_ae():
     fs = _make_feature_set(prefix_lengths=[2])
     artifact = _make_artifact({"m": _ConstantPredictor(20.0)})
     report = evaluate(artifact, fs, "regression")
-    assert set(report.prefix_metrics["m"][2].keys()) == {"mae", "rmse", "r2"}
+    assert set(report.prefix_metrics["m"][2].keys()) == {
+        "mae",
+        "rmse",
+        "r2",
+        "median_ae",
+    }
 
 
-def test_classification_report_metrics_contains_accuracy_balanced_accuracy_f1macro_f1weighted():
+def test_classification_report_metrics_contains_all_keys():
     fs = _make_feature_set(prefix_lengths=[2])
     artifact = _make_artifact({"m": _ConstantPredictor(20.0)})
     report = evaluate(artifact, fs, "classification")
@@ -121,6 +133,10 @@ def test_classification_report_metrics_contains_accuracy_balanced_accuracy_f1mac
         "balanced_accuracy",
         "f1_macro",
         "f1_weighted",
+        "precision_macro",
+        "recall_macro",
+        "roc_auc",
+        "pr_auc",
     }
 
 
@@ -203,6 +219,84 @@ def test_accuracy_is_zero_for_wrong_constant_predictions():
     assert report.prefix_metrics["bad"][2]["accuracy"] == pytest.approx(0.0)
 
 
+def test_median_ae_is_zero_for_perfect_predictions():
+    fs = _make_feature_set(n_per_prefix=5, prefix_lengths=[2])
+    artifact = _make_artifact({"perfect": _ConstantPredictor(20.0)})
+    report = evaluate(artifact, fs, "regression")
+    assert report.prefix_metrics["perfect"][2]["median_ae"] == pytest.approx(
+        0.0
+    )
+
+
+def test_median_ae_is_correct_for_constant_offset():
+    fs = _make_feature_set(n_per_prefix=8, prefix_lengths=[2])
+    artifact = _make_artifact({"biased": _ConstantPredictor(25.0)})
+    report = evaluate(artifact, fs, "regression")
+    assert report.prefix_metrics["biased"][2]["median_ae"] == pytest.approx(5.0)
+
+
+def test_precision_macro_is_one_for_perfect_predictions():
+    fs = _make_feature_set(
+        n_per_prefix=5, prefix_lengths=[2], task="classification"
+    )
+    artifact = _make_artifact({"perfect": _ConstantPredictor(1)})
+    report = evaluate(artifact, fs, "classification")
+    assert report.prefix_metrics["perfect"][2][
+        "precision_macro"
+    ] == pytest.approx(1.0)
+
+
+def test_recall_macro_is_one_for_perfect_predictions():
+    fs = _make_feature_set(
+        n_per_prefix=6, prefix_lengths=[3], task="classification"
+    )
+    artifact = _make_artifact({"perfect": _ConstantPredictor(1)})
+    report = evaluate(artifact, fs, "classification")
+    assert report.prefix_metrics["perfect"][3]["recall_macro"] == pytest.approx(
+        1.0
+    )
+
+
+def test_roc_auc_is_nan_for_single_class_group():
+    fs = _make_feature_set(
+        n_per_prefix=5, prefix_lengths=[2], task="classification"
+    )
+    artifact = _make_artifact({"m": _ConstantPredictor(1)})
+    report = evaluate(artifact, fs, "classification")
+    assert np.isnan(report.prefix_metrics["m"][2]["roc_auc"])
+
+
+def test_pr_auc_is_one_for_single_class_perfect_predictions():
+    fs = _make_feature_set(
+        n_per_prefix=5, prefix_lengths=[2], task="classification"
+    )
+    artifact = _make_artifact({"m": _ConstantPredictor(1)})
+    report = evaluate(artifact, fs, "classification")
+    assert report.prefix_metrics["m"][2]["pr_auc"] == pytest.approx(1.0)
+
+
+def test_roc_auc_is_05_for_constant_predictor_multi_class():
+    rows = []
+    targets = []
+    for i in range(10):
+        rows.append({_PREFIX_COL: 2, "f": float(i)})
+        targets.append(i % 2)
+    X = pd.DataFrame(rows).reset_index(drop=True)
+    y = pd.Series(targets, name="outcome")
+    fs = FeatureSet(
+        X_train=X,
+        X_test=X,
+        y_train=y,
+        y_test=y,
+        feature_names=list(X.columns),
+        trace_ids_train=pd.Series(),
+        trace_ids_test=pd.Series(),
+    )
+    artifact = _make_artifact({"constant": _ConstantPredictor(0)})
+    report = evaluate(artifact, fs, "classification")
+    assert report.prefix_metrics["constant"][2]["roc_auc"] == pytest.approx(0.5)
+
+
 # ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
@@ -245,6 +339,7 @@ def test_all_prefix_lengths_have_all_metrics():
             "mae",
             "rmse",
             "r2",
+            "median_ae",
         }
 
 
