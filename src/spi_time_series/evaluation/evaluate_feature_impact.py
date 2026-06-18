@@ -33,8 +33,16 @@ logger = logging.getLogger(__name__)
 
 # Preferred metric per task type used for the comparison plot.
 _METRIC_PREFERENCE: dict[str, Sequence[str]] = {
-    "regression": ("rmse", "mae", "r2"),
-    "classification": ("f1_weighted", "f1_macro", "accuracy"),
+    "regression": ("rmse", "mae", "r2", "median_ae"),
+    "classification": (
+        "f1_weighted",
+        "roc_auc",
+        "pr_auc",
+        "f1_macro",
+        "accuracy",
+        "precision_macro",
+        "recall_macro",
+    ),
 }
 
 
