@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import seaborn as sns
@@ -62,7 +63,7 @@ def evaluate_feature_importance_per_prefix(
 
     for model_name, pipeline in artifact.models.items():
         # feature importance per prefix
-        per_model_metrics: dict[int, dict[str, float]] = {}
+        per_model_metrics: dict[int, dict[str, Any]] = {}
         for pl_val, group_idx in tqdm(
             groups.items(),
             desc=f"Feature Importance per prefix for model: {model_name}",
@@ -83,9 +84,9 @@ def evaluate_feature_importance_per_prefix(
 
             per_model_metrics[int(pl_val)].update(
                 {
-                    "feature": features.X_test.columns,
-                    "importance_mean": importance_g.importances_mean,
-                    "importance_std": importance_g.importances_std,
+                    "feature": list(features.X_test.columns),
+                    "importance_mean": list(importance_g.importances_mean),
+                    "importance_std": list(importance_g.importances_std),
                 }
             )
 
