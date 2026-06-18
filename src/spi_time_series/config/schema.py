@@ -11,6 +11,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+from sklearn.dummy import DummyClassifier, DummyRegressor
 from sklearn.ensemble import (
     HistGradientBoostingClassifier,
     HistGradientBoostingRegressor,
@@ -28,17 +29,21 @@ ESTIMATOR_ALLOWLIST: dict[str, type] = {
     "RandomForestClassifier": RandomForestClassifier,
     "HistGradientBoostingRegressor": HistGradientBoostingRegressor,
     "HistGradientBoostingClassifier": HistGradientBoostingClassifier,
+    "DummyRegressor": DummyRegressor,
+    "DummyClassifier": DummyClassifier,
 }
 
 _REGRESSION_TYPES = {
     "Ridge",
     "RandomForestRegressor",
     "HistGradientBoostingRegressor",
+    "DummyRegressor",
 }
 _CLASSIFICATION_TYPES = {
     "LogisticRegression",
     "RandomForestClassifier",
     "HistGradientBoostingClassifier",
+    "DummyClassifier",
 }
 
 _FEATURES = {
