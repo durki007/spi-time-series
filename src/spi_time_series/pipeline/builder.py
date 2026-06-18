@@ -117,8 +117,11 @@ class PipelineBuilder:
             _build_trace_samples,
             clean_event_log,
             filter_dev_cases,
-            sliding_window_factory,
             split_data,
+        )
+        from spi_time_series.preprocessing.window_generators import (
+            outcome_window_factory,
+            sliding_window_factory,
         )
 
         builder = cls()
@@ -146,10 +149,19 @@ class PipelineBuilder:
         builder.with_preprocessor(_preprocessor)
 
         split_quantile = config.data.split_quantile
-        prefix_gen = sliding_window_factory(
-            min_length=config.prefix.min_length,
-            max_length=config.prefix.max_length,
-        )
+
+        if config.task == "classification":
+            # in classification we dont want to look at prefixes where the outcome is already clear.
+            prefix_gen = outcome_window_factory(
+                min_length=config.prefix.min_length,
+                max_length=config.prefix.max_length,
+            )
+
+        else:
+            prefix_gen = sliding_window_factory(
+                min_length=config.prefix.min_length,
+                max_length=config.prefix.max_length,
+            )
 
         def _splitter(log) -> PreprocessedData:
             if config.data.dev_mode:
@@ -157,9 +169,9 @@ class PipelineBuilder:
             train_df, test_df = split_data(log, split_quantile=split_quantile)
             col_idx = {c: i for i, c in enumerate(train_df.columns)}
             return PreprocessedData(
-                train_log=_build_trace_samples(train_df, prefix_gen),
+                train_log=_build_trace_samples(train_df, prefix_gen, col_idx),
                 num_train_cases=len(train_df["case:concept:name"].unique()),
-                test_log=_build_trace_samples(test_df, prefix_gen),
+                test_log=_build_trace_samples(test_df, prefix_gen, col_idx),
                 num_test_cases=len(test_df["case:concept:name"].unique()),
                 col_idx=col_idx,
                 cleaned_log=log,

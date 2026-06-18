@@ -149,7 +149,9 @@ class ModelComparisonResult:
 
 
 class WindowGenerator(Protocol):
-    def __call__(self, trace: np.ndarray) -> np.ndarray: ...
+    def __call__(
+        self, trace: np.ndarray, col_idx_mapping: dict[str, int]
+    ) -> np.ndarray: ...
 
 
 class TargetGenerator(Protocol):
