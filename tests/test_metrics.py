@@ -56,12 +56,16 @@ def _make_feature_set(
     else:
         y = pd.Series(targets, name="remaining_time_hours")
 
+    trace_ids = pd.Series(["A"] * len(y))
+
     return FeatureSet(
         X_train=X,
         X_test=X,
         y_train=y,
         y_test=y,
         feature_names=list(X.columns),
+        trace_ids_train=trace_ids,
+        trace_ids_test=trace_ids,
     )
 
 
@@ -108,12 +112,13 @@ def test_regression_report_metrics_contains_mae_rmse_r2():
     assert set(report.prefix_metrics["m"][2].keys()) == {"mae", "rmse", "r2"}
 
 
-def test_classification_report_metrics_contains_accuracy_f1macro_f1weighted():
+def test_classification_report_metrics_contains_accuracy_balanced_accuracy_f1macro_f1weighted():
     fs = _make_feature_set(prefix_lengths=[2])
     artifact = _make_artifact({"m": _ConstantPredictor(20.0)})
     report = evaluate(artifact, fs, "classification")
     assert set(report.prefix_metrics["m"][2].keys()) == {
         "accuracy",
+        "balanced_accuracy",
         "f1_macro",
         "f1_weighted",
     }
@@ -221,6 +226,8 @@ def test_missing_prefix_length_column_raises():
         y_train=y,
         y_test=y,
         feature_names=list(X.columns),
+        trace_ids_train=pd.Series(),
+        trace_ids_test=pd.Series(),
     )
     artifact = _make_artifact({"m": _ConstantPredictor(15.0)})
     with pytest.raises(
@@ -309,6 +316,8 @@ def test_compare_models_weighted_avg_differs_when_unequal():
         y_train=y,
         y_test=y,
         feature_names=list(X.columns),
+        trace_ids_train=pd.Series(),
+        trace_ids_test=pd.Series(),
     )
 
     artifact = _make_artifact({"m": _ConstantPredictor(10.0)})
