@@ -171,6 +171,7 @@ class SearchConfig(BaseModel):
     cv_folds: int = 3
     random_state: int = 42
     search_sample_size: int | None = None
+    scoring: str | None = None
 
     @field_validator("n_iter", "cv_folds")
     @classmethod

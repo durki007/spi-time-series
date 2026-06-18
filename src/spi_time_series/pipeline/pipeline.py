@@ -34,12 +34,20 @@ def _merge_evaluations(reports: list[EvaluationReport]) -> EvaluationReport:
     if not reports:
         raise ValueError("No evaluators produced a report.")
     merged = EvaluationReport(
+        feature_set=None,
+        model_predictions={},
         prefix_metrics={},
         model_metrics={},
         model_names=[],
         prefix_lengths=[],
     )
     for report in reports:
+        if merged.feature_set is None and report.feature_set is not None:
+            merged.feature_set = report.feature_set  # We assume if multiple reports have a feature set they all are the same.
+
+        for model, pred in report.model_predictions.items():
+            merged.model_predictions[model] = pred
+
         for model, by_prefix in report.prefix_metrics.items():
             merged.prefix_metrics.setdefault(model, {})
             for prefix, metrics in by_prefix.items():
