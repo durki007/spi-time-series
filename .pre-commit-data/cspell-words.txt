@@ -1,5 +1,6 @@
 pbar
 preds
+proba
 categoricals
 dayofweek
 artefacts
