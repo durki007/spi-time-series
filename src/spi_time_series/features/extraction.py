@@ -114,10 +114,11 @@ def generate_feature_matrix(
             col_idx_mapping,
         ),
     ) as pool:
+        chunk_size = max(1, len(samples) // (cpu_count() * 4))
         results = pool.imap_unordered(
             _process_sample,
             samples,
-            chunksize=1,
+            chunksize=chunk_size,
         )
 
         for rows, targets in tqdm(
@@ -234,7 +235,7 @@ def extract_features_builder(
     target_generator: TargetGenerator,
     feature_kwargs: dict[str, dict] | None = None,
     *,
-    drop_features: list[str] | None = None,
+    exclude_features: list[str] | None = None,
 ) -> Callable[[PreprocessedData], FeatureSet]:
     """Create a feature extractor callable with optional column pruning.
 
@@ -246,7 +247,7 @@ def extract_features_builder(
         Function that produces a target label for each prefix window.
     feature_kwargs:
         Optional per-feature keyword-argument overrides keyed by feature name.
-    drop_features:
+    exclude_features:
         Column names to remove from ``X_train`` and ``X_test`` after
         extraction.  Columns that are not present in the dataframe are
         logged as a warning and skipped.  Pass ``None`` or an empty list
@@ -260,11 +261,11 @@ def extract_features_builder(
     if feature_kwargs is None:
         feature_kwargs = {}
 
-    if drop_features is None:
-        drop_features = []
+    if exclude_features is None:
+        exclude_features = []
 
     # Normalize to a set for efficient lookup
-    _drop: set[str] = set(drop_features)
+    _drop: set[str] = set(exclude_features)
 
     def extract_features(data: PreprocessedData) -> FeatureSet:
         # fit features on training data
@@ -301,7 +302,7 @@ def extract_features_builder(
                 present: set[str] = _drop & set(df.columns)
                 if missing:
                     logger.warning(
-                        "drop_features: %d column(s) not found in X_%s: %s",
+                        "exclude_features: %d column(s) not found in X_%s: %s",
                         len(missing),
                         side,
                         sorted(missing),

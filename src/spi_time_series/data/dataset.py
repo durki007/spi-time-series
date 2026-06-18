@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 _DOWNLOAD_URL = "https://data.4tu.nl/ndownloader/items/34c3f44b-3101-4ea9-8281-e38905c68b8d/versions/1"
 _XES_FILENAME = "BPI Challenge 2017.xes.gz"
-_DEFAULT_DATA_DIR = Path(__file__).parents[3] / "data" / "raw"
+_DEFAULT_DATA_DIR = Path(__file__).resolve().parents[3] / "data" / "raw"
 
 
 class Dataset:
@@ -36,6 +36,9 @@ class Dataset:
         self.log: pd.DataFrame = self._load()
 
     def _xes_path(self) -> Path:
+        matches = list(self.data_dir.rglob(_XES_FILENAME))
+        if matches:
+            return matches[0]
         return self.data_dir / _XES_FILENAME
 
     def _load(self) -> pd.DataFrame:
@@ -55,7 +58,7 @@ class Dataset:
     def _download(self) -> None:
         zip_path = self.data_dir / "data.zip"
         logger.info("Downloading from %s ...", _DOWNLOAD_URL)
-        response = requests.get(_DOWNLOAD_URL, stream=True)
+        response = requests.get(_DOWNLOAD_URL, stream=True, timeout=300)
         response.raise_for_status()
         with open(zip_path, "wb") as f:
             for chunk in response.iter_content(chunk_size=8192):
@@ -64,4 +67,12 @@ class Dataset:
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
             zip_ref.extractall(self.data_dir)
         zip_path.unlink()
+
+        xes_files = list(self.data_dir.rglob(_XES_FILENAME))
+        if not xes_files:
+            raise FileNotFoundError(
+                f"Expected file '{_XES_FILENAME}' not found after "
+                f"extraction in {self.data_dir}. "
+                f"Archive may contain unexpected folder structure."
+            )
         logger.info("Extraction complete.")

@@ -34,14 +34,16 @@ def test_save_load_round_trip(tmp_path, regression_raw):
 
 
 def test_build_estimator_correct_class():
-    cfg = ModelConfig(type="Ridge", params={}, param_grid={"alpha": [0.1]})
+    cfg = ModelConfig(
+        model_type="Ridge", params={}, param_grid={"alpha": [0.1]}
+    )
     estimator = build_estimator(cfg)
     assert isinstance(estimator, Ridge)
 
 
 def test_build_estimator_applies_params():
     cfg = ModelConfig(
-        type="Ridge", params={"alpha": 5.0}, param_grid={"alpha": [5.0]}
+        model_type="Ridge", params={"alpha": 5.0}, param_grid={"alpha": [5.0]}
     )
     estimator = build_estimator(cfg)
     assert estimator.alpha == 5.0
@@ -49,7 +51,7 @@ def test_build_estimator_applies_params():
 
 def test_build_estimator_logistic_regression():
     cfg = ModelConfig(
-        type="LogisticRegression",
+        model_type="LogisticRegression",
         params={"max_iter": 200, "solver": "saga"},
         param_grid={"C": [0.1]},
     )

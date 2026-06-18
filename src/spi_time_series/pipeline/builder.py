@@ -37,7 +37,9 @@ class PipelineBuilder:
         self._feature_extractor: FeatureExtractor | None = None
         self._pca_keep_percentage: float | None = None
         self._models: dict[str, BaseEstimator] = {}
-        self._param_grids: dict[str, dict[str, list]] = {}
+        self._param_grids: dict[
+            str, dict[str, list[int | float | str | None]]
+        ] = {}
         self._evaluators: list[Evaluator] = []
         self._reporters: list[Reporter] = []
 

@@ -51,9 +51,9 @@ _FEATURES = {
 
 
 class ModelConfig(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, populate_by_name=True)
 
-    type: str
+    model_type: str
     params: dict[str, int | float | str | bool | None] = Field(
         default_factory=dict
     )
@@ -61,7 +61,7 @@ class ModelConfig(BaseModel):
         default_factory=dict
     )
 
-    @field_validator("type")
+    @field_validator("model_type")
     @classmethod
     def type_in_allowlist(cls, v: str) -> str:
         if v not in ESTIMATOR_ALLOWLIST:
@@ -132,7 +132,7 @@ class FeaturesConfig(BaseModel):
     enabled_features: list[str] = Field(
         default_factory=lambda: ["BasicControlFlowFeatures"]
     )
-    drop_features: list[str] = Field(
+    exclude_features: list[str] = Field(
         default_factory=list,
         description=(
             "Column names to drop from the extracted feature matrices "
@@ -203,14 +203,20 @@ class RunConfig(BaseModel):
     @model_validator(mode="after")
     def task_model_types_align(self) -> RunConfig:
         for name, m in self.models.items():
-            if self.task == "regression" and m.type in _CLASSIFICATION_TYPES:
+            if (
+                self.task == "regression"
+                and m.model_type in _CLASSIFICATION_TYPES
+            ):
                 raise ValueError(
-                    f"models.{name}.type '{m.type}' is a classifier "
+                    f"models.{name}.model_type '{m.model_type}' is a classifier "
                     f"but task is 'regression'."
                 )
-            if self.task == "classification" and m.type in _REGRESSION_TYPES:
+            if (
+                self.task == "classification"
+                and m.model_type in _REGRESSION_TYPES
+            ):
                 raise ValueError(
-                    f"models.{name}.type '{m.type}' is a regressor "
+                    f"models.{name}.model_type '{m.model_type}' is a regressor "
                     f"but task is 'classification'."
                 )
         return self

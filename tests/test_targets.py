@@ -147,7 +147,7 @@ def test_outcome_priority_first_match_only():
     # depends on OUTCOME_EVENTS order → deterministic behavior expected
     result = outcome_target(trace, 0, 2, mapping)
 
-    assert result in [0, 1, 2]  # but should match first valid rule
+    assert result == 1
 
 
 def test_outcome_missing_event_raises():

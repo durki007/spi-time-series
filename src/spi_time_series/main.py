@@ -22,12 +22,12 @@ from spi_time_series.data.schemas import (
 )
 from spi_time_series.data.types import FeatureExtractor
 from spi_time_series.evaluation.feature_importance import (
-    _prefix_importance_to_dataframe,
     evaluate_feature_importance,
     evaluate_feature_importance_per_prefix,
     report_feature_importance,
-    save_prefix_importance_heatmap,
-    save_prefix_importance_trajectories,
+)
+from spi_time_series.evaluation.feature_importance import (
+    report_prefix_importance_visualizations as _save_prefix_importance_visualizations,
 )
 from spi_time_series.evaluation.metrics import (
     _make_model_comparison_reporter,
@@ -100,8 +100,45 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 # ---------------------------------------------------------------------------
-# Config override helpers
+# YAML duplicate key detection
 # ---------------------------------------------------------------------------
+
+
+def _warn_duplicate_keys(config_path: Path) -> None:
+    import yaml as _yaml
+
+    tracker: dict[int, dict[str, int]] = {}
+
+    class _DupTracker(_yaml.SafeLoader):
+        pass
+
+    def _construct_mapping(loader, node, deep=False):
+        mapping = {}
+        for key_node, value_node in node.value:
+            key = loader.construct_object(key_node, deep=deep)
+            line = key_node.start_mark.line + 1
+            tracker.setdefault(line, {})
+            tracker[line][str(key)] = tracker[line].get(str(key), 0) + 1
+            mapping[key] = loader.construct_object(value_node, deep=deep)
+        return mapping
+
+    _DupTracker.add_constructor(
+        _yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+        _construct_mapping,
+    )
+    try:
+        _yaml.load(config_path.read_text(), Loader=_DupTracker)
+    except Exception:
+        return
+    duplicates = {
+        k for line in tracker.values() for k, cnt in line.items() if cnt > 1
+    }
+    if duplicates:
+        logger.warning(
+            "Duplicate YAML key(s) in %s: %s (last value wins)",
+            config_path.name,
+            ", ".join(sorted(duplicates)),
+        )
 
 
 def _coerce(value: str) -> Any:
@@ -173,13 +210,13 @@ def _build_default_feature_extractor(config: RunConfig) -> FeatureExtractor:
         return extract_features_builder(
             feature_list,
             remaining_time_target,
-            drop_features=config.features.drop_features,
+            exclude_features=config.features.exclude_features,
         )
     else:
         return extract_features_builder(
             feature_list,
             outcome_target,
-            drop_features=config.features.drop_features,
+            exclude_features=config.features.exclude_features,
         )
 
 
@@ -195,6 +232,9 @@ def _save_report(
 ) -> None:
     """Reporter: write EvaluationReport to a CSV in output_dir/reports/."""
     if output_dir is None:
+        logger.warning(
+            "No output directory provided; skipping evaluation report."
+        )
         return
 
     rows = [
@@ -215,57 +255,6 @@ def _save_report(
     path = reports_dir / "evaluation_report.csv"
     df.to_csv(path, index=False)
     logger.info("Evaluation report saved to %s", path)
-
-
-def _save_prefix_importance_visualizations(
-    artifact: ModelArtifact,
-    report: EvaluationReport,
-    output_dir: Path | None,
-) -> None:
-    """Reporter: generate heatmap and trajectory plots for per-prefix feature
-    importance and save them under ``output_dir / "feature_importance"``.
-
-    This reporter expects the evaluation report to contain per-prefix feature
-    importance metrics (populated by ``evaluate_feature_importance_per_prefix``).
-    When ``output_dir`` is ``None`` or the report contains no ``prefix_metrics``,
-    the function returns silently.
-    """
-    if output_dir is None:
-        return
-    if not report.prefix_metrics:
-        logger.info(
-            "No per-prefix feature importance data found; "
-            "skipping visualization generation."
-        )
-        return
-
-    importance_df: pd.DataFrame = _prefix_importance_to_dataframe(report)
-    vis_dir: Path = output_dir / "feature_importance"
-    vis_dir.mkdir(parents=True, exist_ok=True)
-
-    for model_name in report.prefix_metrics:
-        model_df: pd.DataFrame = importance_df.query(f"model == '{model_name}'")
-        if model_df.empty:
-            logger.warning(
-                "No per-prefix importance rows for model '%s'; skipping.",
-                model_name,
-            )
-            continue
-
-        heatmap_path: Path = save_prefix_importance_heatmap(
-            model_df,
-            vis_dir / f"{model_name}_heatmap.png",
-        )
-        logger.info("Prefix importance heatmap saved to %s", heatmap_path)
-
-        trajectory_path: Path = save_prefix_importance_trajectories(
-            model_df,
-            vis_dir / f"{model_name}_trajectories.png",
-            smooth=True,
-        )
-        logger.info(
-            "Prefix importance trajectories saved to %s", trajectory_path
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -304,6 +293,7 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(1)
 
     raw: dict = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    _warn_duplicate_keys(config_path)
     _apply_overrides(raw, args.override)
 
     try:

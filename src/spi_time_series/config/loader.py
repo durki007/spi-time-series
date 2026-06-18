@@ -25,5 +25,5 @@ def save_config(config: RunConfig, path: Path | str) -> None:
 
 
 def build_estimator(model_cfg: ModelConfig) -> BaseEstimator:
-    cls = ESTIMATOR_ALLOWLIST[model_cfg.type]
+    cls = ESTIMATOR_ALLOWLIST[model_cfg.model_type]
     return cls(**model_cfg.params)

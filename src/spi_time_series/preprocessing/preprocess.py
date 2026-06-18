@@ -5,13 +5,8 @@ import pm4py
 
 from spi_time_series.data.constants import OUTCOME_EVENTS
 from spi_time_series.data.schemas import (
-    PreprocessedData,
-    RawData,
     TraceSample,
     WindowGenerator,
-)
-from spi_time_series.preprocessing.window_generators import (
-    sliding_window_factory,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,9 +40,10 @@ def clean_event_log(
         logger.info(
             f"Filtering cases without any of {OUTCOME_EVENTS}. They are likely incomplete"
         )
+        outcome_events_set = set(OUTCOME_EVENTS)
         cases_with_outcome = df.groupby("case:concept:name")[
             "concept:name"
-        ].apply(lambda x: any(act in set(x) for act in OUTCOME_EVENTS))
+        ].apply(lambda x: bool(set(x) & outcome_events_set))
 
         valid_cases = cases_with_outcome[cases_with_outcome].index
 
@@ -95,8 +91,11 @@ def split_data(
     Returns (train_df, test_df)
     """
     # Determine the cutoff time based on the specified quantile of case start times.
-    case_starts = df.groupby("case:concept:name")["time:timestamp"].min()
-    case_ends = df.groupby("case:concept:name")["time:timestamp"].max()
+    case_stats = df.groupby("case:concept:name")["time:timestamp"].agg(
+        ["min", "max"]
+    )
+    case_starts = case_stats["min"]
+    case_ends = case_stats["max"]
     cutoff_time = case_starts.quantile(split_quantile)
     logger.info(f"Splitting cases at cutoff time: {cutoff_time}")
 
@@ -147,53 +146,3 @@ def _build_trace_samples(
     )
 
     return traces
-
-
-def preprocess(
-    raw: RawData,
-    prefix_generator: WindowGenerator | None = None,
-) -> PreprocessedData:
-    """
-    End-to-end preprocessing pipeline for event logs.
-
-    Cleans raw event data, splits it into train and test sets, and
-    generates prefix samples with associated targets for both splits.
-
-    Steps:
-        1. Clean the raw event log data to ensure quality and consistency.
-        2. Split the cleaned event log into training and testing sets based on a temporal cutoff.
-        3. Generate prefix samples for both training and testing sets using the provided window generator and target generator.
-
-    Args:
-        raw:
-            Raw event log input.
-
-        prefix_generator:
-            Optional window generator for creating prefixes.
-            If None, a default sliding window strategy is used.
-
-    Returns:
-        PreprocessedData:
-            Structured dataset containing train and test prefix streams
-            ready for feature extraction or modeling.
-    """
-    cleaned_df = clean_event_log(raw.event_log)
-
-    train_df, test_df = split_data(cleaned_df)
-
-    col_idx = {c: i for i, c in enumerate(train_df.columns)}
-
-    # Use a default sliding window generator if none is provided.
-    if prefix_generator is None:
-        prefix_generator = sliding_window_factory()
-
-    # Build prefix samples for both training and testing sets.
-    preprocessed_data = PreprocessedData(
-        train_log=_build_trace_samples(train_df, prefix_generator, col_idx),
-        num_train_cases=len(train_df["case:concept:name"].unique()),
-        test_log=_build_trace_samples(test_df, prefix_generator, col_idx),
-        num_test_cases=len(test_df["case:concept:name"].unique()),
-        col_idx=col_idx,
-    )
-
-    return preprocessed_data

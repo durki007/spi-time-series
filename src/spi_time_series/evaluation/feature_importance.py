@@ -16,13 +16,13 @@ from spi_time_series.data.schemas import (
 )
 
 _PREFIX_LENGTH_COL = "BasicControlFlowFeatures__prefix_length"
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 def evaluate_feature_importance(
     artifact: ModelArtifact, features: FeatureSet, task: TaskType
 ) -> EvaluationReport:
-    feature_importance: dict[str, dict[str, float]] = {}
+    feature_importance: dict[str, dict[str, Any]] = {}
     groups: dict = features.X_test.groupby(_PREFIX_LENGTH_COL).groups
     prefix_lengths: list[int] = sorted(int(pl) for pl in groups)
     model_names: list[str] = list(artifact.models)
@@ -40,9 +40,9 @@ def evaluate_feature_importance(
         )
 
         feature_importance[model_name] = {
-            "feature": features.X_test.columns,
-            "importance_mean": importance.importances_mean,
-            "importance_std": importance.importances_std,
+            "feature": list(features.X_test.columns),
+            "importance_mean": list(importance.importances_mean),
+            "importance_std": list(importance.importances_std),
         }
 
     return EvaluationReport(
@@ -55,7 +55,7 @@ def evaluate_feature_importance(
 def evaluate_feature_importance_per_prefix(
     artifact: ModelArtifact, features: FeatureSet, task: TaskType
 ) -> EvaluationReport:
-    prefix_feature_importance: dict[str, dict[int, dict[str, float]]] = {}
+    prefix_feature_importance: dict[str, dict[int, dict[str, Any]]] = {}
 
     groups: dict = features.X_test.groupby(_PREFIX_LENGTH_COL).groups
     prefix_lengths: list[int] = sorted(int(pl) for pl in groups)
@@ -71,8 +71,6 @@ def evaluate_feature_importance_per_prefix(
             y_test_g = features.y_test.loc[group_idx]
             X_test_g = features.X_test.loc[group_idx]
 
-            per_model_metrics[int(pl_val)] = {"n_prefixes": len(y_test_g)}
-
             importance_g = permutation_importance(
                 pipeline,
                 X_test_g,
@@ -82,18 +80,16 @@ def evaluate_feature_importance_per_prefix(
                 n_jobs=-1,
             )
 
-            per_model_metrics[int(pl_val)].update(
-                {
-                    "feature": list(features.X_test.columns),
-                    "importance_mean": list(importance_g.importances_mean),
-                    "importance_std": list(importance_g.importances_std),
-                }
-            )
+            per_model_metrics[int(pl_val)] = {
+                "feature": list(features.X_test.columns),
+                "importance_mean": list(importance_g.importances_mean),
+                "importance_std": list(importance_g.importances_std),
+            }
 
         prefix_feature_importance[model_name] = per_model_metrics
 
     return EvaluationReport(
-        prefix_metrics=prefix_feature_importance,
+        feature_importance=prefix_feature_importance,
         model_names=model_names,
         prefix_lengths=prefix_lengths,
     )
@@ -124,33 +120,65 @@ def report_feature_importance(
         )
 
 
-def report_feature_importance_per_prefix(
-    artifact: ModelArtifact, report: EvaluationReport, output_dir: Path | None
-):
+def report_prefix_importance_visualizations(
+    artifact: ModelArtifact,
+    report: EvaluationReport,
+    output_dir: Path | None,
+) -> None:
+    """Reporter: generate heatmap and trajectory plots for per-prefix feature
+    importance and save them under ``output_dir / "feature_importance"``.
+
+    This reporter expects the evaluation report to contain per-prefix feature
+    importance metrics (populated by ``evaluate_feature_importance_per_prefix``).
+    When ``output_dir`` is ``None`` or the report contains no ``prefix_metrics``,
+    the function logs a warning and returns early.
+    """
     if output_dir is None:
-        return
-    reports_dir = output_dir / "feature_importance"
-    reports_dir.mkdir(parents=True, exist_ok=True)
-
-    # per prefix importance
-    importance_df = _prefix_importance_to_dataframe(report)
-    for model in report.prefix_metrics.keys():
-        save_prefix_importance_heatmap(
-            importance_df.query(f"model == '{model}'"),
-            reports_dir / "heatmap.png",
+        logger.warning(
+            "No output directory provided; skipping prefix importance "
+            "visualizations."
         )
+        return
+    if not report.feature_importance:
+        logger.info(
+            "No per-prefix feature importance data found; "
+            "skipping visualization generation."
+        )
+        return
 
-        save_prefix_importance_trajectories(
-            importance_df.query(f"model == '{model}'"),
-            reports_dir / "trajectories.png",
+    importance_df: pd.DataFrame = _prefix_importance_to_dataframe(report)
+    vis_dir: Path = output_dir / "feature_importance"
+    vis_dir.mkdir(parents=True, exist_ok=True)
+
+    for model_name in report.feature_importance:
+        model_df: pd.DataFrame = importance_df.query(f"model == '{model_name}'")
+        if model_df.empty:
+            logger.warning(
+                "No per-prefix importance rows for model '%s'; skipping.",
+                model_name,
+            )
+            continue
+
+        heatmap_path: Path = save_prefix_importance_heatmap(
+            model_df,
+            vis_dir / f"{model_name}_heatmap.png",
+        )
+        logger.info("Prefix importance heatmap saved to %s", heatmap_path)
+
+        trajectory_path: Path = save_prefix_importance_trajectories(
+            model_df,
+            vis_dir / f"{model_name}_trajectories.png",
             smooth=True,
+        )
+        logger.info(
+            "Prefix importance trajectories saved to %s", trajectory_path
         )
 
 
 def _prefix_importance_to_dataframe(report: EvaluationReport):
     records = []
 
-    for model, prefix_data in report.prefix_metrics.items():
+    for model, prefix_data in report.feature_importance.items():
         for prefix_length, metrics in prefix_data.items():
             for feature, mean, std in zip(  # type: ignore[call-overload]
                 metrics["feature"],
@@ -258,10 +286,11 @@ def save_prefix_importance_heatmap(
 
     df = importance_df[importance_df["feature"].isin(top_features)]
 
-    heatmap_df = df.pivot(
+    heatmap_df = df.pivot_table(
         index="feature",
         columns="prefix_length",
         values="importance_mean",
+        aggfunc="mean",
     ).fillna(0)
 
     # Most important at top
