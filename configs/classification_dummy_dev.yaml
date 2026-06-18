@@ -1,12 +1,6 @@
 task: classification
 
 data:
-  valid_end_activities:
-    - "W_Validate application"
-    - "W_Call after offers"
-    - "W_Call incomplete files"
-    - "O_Cancelled"
-    - "A_Denied"
   top_k_variants: null
   split_quantile: 0.8
   dev_mode: true
