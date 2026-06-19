@@ -22,6 +22,9 @@ class PipelineState:
     optimized_models: dict[str, BaseEstimator] = field(default_factory=dict)
     trained_models: dict[str, Any] = field(default_factory=dict)
 
+    # Best hyperparameters found during search (model name → param dict)
+    best_params: dict[str, dict] = field(default_factory=dict)
+
     # Cache keys
     extract_key: str | None = None
     search_keys: dict[str, str] = field(default_factory=dict)

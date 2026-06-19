@@ -117,6 +117,9 @@ class Pipeline:
     _trained_models: dict[str, Any] = field(
         default_factory=dict, init=False, repr=False
     )
+    _best_params: dict[str, dict] = field(
+        default_factory=dict, init=False, repr=False
+    )
 
     # Per-stage / per-model cache keys
     _extract_key: str | None = field(default=None, init=False, repr=False)
@@ -132,6 +135,11 @@ class Pipeline:
         """True after fit() has completed at least the train stage."""
         return self._features is not None and self._artifact is not None
 
+    @property
+    def best_params(self) -> dict[str, dict]:
+        """Best hyperparameters found per model during the last search stage."""
+        return dict(self._best_params)
+
     def restore_state(self, state: PipelineState) -> None:
         """Load a previously saved PipelineState into this pipeline.
 
@@ -142,9 +150,30 @@ class Pipeline:
         self._features = state.features
         self._optimized_models = dict(state.optimized_models)
         self._trained_models = dict(state.trained_models)
+        self._best_params = dict(state.best_params)
         self._extract_key = state.extract_key
         self._search_keys = dict(state.search_keys)
         self._train_keys = dict(state.train_keys)
+
+        f = state.features
+        feature_summary = (
+            f"{len(f.X_train)} train rows × {len(f.feature_names)} features, "
+            f"{len(f.X_test)} test rows"
+            if f is not None
+            else "no features"
+        )
+        opt_names = list(state.optimized_models) or ["none"]
+        trained_names = list(state.trained_models) or ["none"]
+        logger.info(
+            "Checkpoint loaded: extract_key=%s | features: %s | "
+            "optimized models [%d]: %s | trained models [%d]: %s",
+            state.extract_key or "none",
+            feature_summary,
+            len(state.optimized_models),
+            ", ".join(opt_names),
+            len(state.trained_models),
+            ", ".join(trained_names),
+        )
 
         # Reconstruct artifact if all current model names are cached
         if self._features is not None and set(self.models).issubset(
@@ -155,6 +184,11 @@ class Pipeline:
                 feature_names=self._features.feature_names,
                 target_col=self._features.y_train.name or "target",
             )
+            logger.info(
+                "All %d model(s) present in checkpoint — pipeline is fully fitted, "
+                "evaluate() can be called without re-running fit stages.",
+                len(self.models),
+            )
 
     def extract_state(self) -> PipelineState:
         """Capture the current fitted state as a serialisable PipelineState."""
@@ -162,6 +196,7 @@ class Pipeline:
             features=self._features,
             optimized_models=dict(self._optimized_models),
             trained_models=dict(self._trained_models),
+            best_params=dict(self._best_params),
             extract_key=self._extract_key,
             search_keys=dict(self._search_keys),
             train_keys=dict(self._train_keys),
@@ -209,6 +244,13 @@ class Pipeline:
             logger.info("Extracting features…")
             self._features = self.feature_extractor(preprocessed)
             self._extract_key = extract_key
+            logger.info(
+                "Features extracted (key: %s): %d train rows × %d features, %d test rows",
+                self._extract_key,
+                len(self._features.X_train),
+                len(self._features.feature_names),
+                len(self._features.X_test),
+            )
 
             # Cascade: all per-model results are now stale
             self._optimized_models.clear()
@@ -217,11 +259,23 @@ class Pipeline:
             self._train_keys.clear()
             self._artifact = None
         else:
-            logger.info("Skipping extract (key: %s)", self._extract_key)
+            f = self._features
+            logger.info(
+                "Skipping extract (key: %s) — reusing %d train rows × %d features, %d test rows",
+                self._extract_key,
+                len(f.X_train) if f is not None else 0,
+                len(f.feature_names) if f is not None else 0,
+                len(f.X_test) if f is not None else 0,
+            )
 
         # ---- search (per-model) -----------------------------------------
         models_needing_search: dict[str, BaseEstimator] = {}
         new_search_keys: dict[str, str] = {}
+        models_with_grid = [n for n in self.models if self.param_grids.get(n)]
+        if not models_with_grid:
+            logger.info(
+                "Search stage: no models have a param_grid — skipping entirely."
+            )
         for name, model in self.models.items():
             param_grid = self.param_grids.get(name, {})
             if not param_grid:
@@ -243,7 +297,13 @@ class Pipeline:
                 and name in self._optimized_models
                 and self._search_keys.get(name) == key
             ):
-                logger.info("Skipping search for '%s' (key: %s)", name, key)
+                cached_params = self._best_params.get(name, {})
+                logger.info(
+                    "Skipping search for '%s' (key: %s) — reusing cached params: %s",
+                    name,
+                    key,
+                    cached_params if cached_params else "<not recorded>",
+                )
             else:
                 models_needing_search[name] = model
 
@@ -257,7 +317,7 @@ class Pipeline:
                 "Searching hyperparameters for %d model(s)…",
                 len(models_needing_search),
             )
-            new_opts = search_hyperparams(
+            new_opts, new_best = search_hyperparams(
                 self._features,
                 models_needing_search,
                 {n: self.param_grids[n] for n in models_needing_search},
@@ -268,6 +328,8 @@ class Pipeline:
             for name in models_needing_search:
                 self._optimized_models[name] = new_opts[name]
                 self._search_keys[name] = new_search_keys[name]
+                if name in new_best:
+                    self._best_params[name] = new_best[name]
                 # Cascade: invalidate train for this model
                 self._trained_models.pop(name, None)
                 self._train_keys.pop(name, None)
@@ -296,12 +358,23 @@ class Pipeline:
                 and name in self._trained_models
                 and self._train_keys.get(name) == key
             ):
-                logger.info("Skipping train for '%s' (key: %s)", name, key)
+                logger.info(
+                    "Skipping train for '%s' (key: %s) — reusing cached %s",
+                    name,
+                    key,
+                    type(est).__name__,
+                )
             else:
                 models_needing_train[name] = est
 
         assert self._features is not None
-        if models_needing_train:
+        if not models_needing_train:
+            logger.info(
+                "Train stage: all %d model(s) loaded from cache — %s",
+                len(effective_models),
+                ", ".join(effective_models),
+            )
+        else:
             logger.info("Training %d model(s)…", len(models_needing_train))
             new_artifact = train(
                 self._features, models_needing_train, self.pca_keep_percentage
