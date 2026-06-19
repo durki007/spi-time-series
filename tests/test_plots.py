@@ -4,13 +4,15 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from spi_time_series.evaluation.metrics import (
+    detect_task,
+    select_primary_metric,
+)
 from spi_time_series.evaluation.plots import (
-    _detect_task,
     _plot_error_distribution,
     _plot_metric_vs_prefix,
     _plot_predicted_vs_actual,
     _plot_roc_pr_curves,
-    _select_primary_metric,
 )
 
 
@@ -77,29 +79,29 @@ def _make_classification_data(
 
 
 def test_detect_task_regression():
-    assert _detect_task({"mae", "rmse", "r2", "median_ae"}) == "regression"
+    assert detect_task({"mae", "rmse", "r2", "median_ae"}) == "regression"
 
 
 def test_detect_task_classification():
-    assert _detect_task({"accuracy", "f1_weighted"}) == "classification"
+    assert detect_task({"accuracy", "f1_weighted"}) == "classification"
 
 
 def test_detect_task_raises_on_unknown():
     with pytest.raises(ValueError, match="Cannot detect task"):
-        _detect_task({"unknown_col"})
+        detect_task({"unknown_col"})
 
 
 def test_select_primary_metric_regression():
-    assert _select_primary_metric("regression", {"rmse", "mae"}) == "rmse"
+    assert select_primary_metric("regression", {"rmse", "mae"}) == "rmse"
 
 
 def test_select_primary_metric_fallback():
-    assert _select_primary_metric("regression", {"median_ae"}) == "median_ae"
+    assert select_primary_metric("regression", {"median_ae"}) == "median_ae"
 
 
 def test_select_primary_metric_classification():
     assert (
-        _select_primary_metric("classification", {"f1_weighted"})
+        select_primary_metric("classification", {"f1_weighted"})
         == "f1_weighted"
     )
 
