@@ -9,6 +9,7 @@ from spi_time_series.data.schemas import (
     ModelArtifact,
 )
 from spi_time_series.evaluation.metrics import compare_models, evaluate
+from tests.conftest import ConstantPredictor
 
 _PREFIX_COL = "BasicControlFlowFeatures__prefix_length"
 
@@ -16,23 +17,6 @@ _PREFIX_COL = "BasicControlFlowFeatures__prefix_length"
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-class _ConstantPredictor:
-    """Duck-type predict stub: always returns a fixed constant."""
-
-    def __init__(self, constant: float):
-        self._c = constant
-
-    def predict(self, X):
-        return np.full(len(X), self._c)
-
-    def predict_proba(self, X):
-        n = len(X)
-        n_classes = max(int(self._c) + 1, 2)
-        proba = np.zeros((n, n_classes))
-        proba[:, int(self._c)] = 1.0
-        return proba
 
 
 def _make_feature_set(
@@ -91,7 +75,7 @@ def _make_artifact(model_dict: dict) -> ModelArtifact:
 
 def test_evaluate_returns_evaluation_report():
     fs = _make_feature_set()
-    artifact = _make_artifact({"perfect": _ConstantPredictor(10.0)})
+    artifact = _make_artifact({"perfect": ConstantPredictor(10.0)})
     report = evaluate(artifact, fs, "regression")
     assert isinstance(report, EvaluationReport)
 
@@ -99,7 +83,7 @@ def test_evaluate_returns_evaluation_report():
 def test_report_model_names_match_artifact():
     fs = _make_feature_set()
     artifact = _make_artifact(
-        {"m1": _ConstantPredictor(10.0), "m2": _ConstantPredictor(20.0)}
+        {"m1": ConstantPredictor(10.0), "m2": ConstantPredictor(20.0)}
     )
     report = evaluate(artifact, fs, "regression")
     assert set(report.model_names) == {"m1", "m2"}
@@ -107,14 +91,14 @@ def test_report_model_names_match_artifact():
 
 def test_report_prefix_lengths_match_data():
     fs = _make_feature_set(prefix_lengths=[1, 3, 5])
-    artifact = _make_artifact({"m": _ConstantPredictor(15.0)})
+    artifact = _make_artifact({"m": ConstantPredictor(15.0)})
     report = evaluate(artifact, fs, "regression")
     assert sorted(report.prefix_lengths) == [1, 3, 5]
 
 
 def test_regression_report_metrics_contains_mae_rmse_r2_median_ae():
     fs = _make_feature_set(prefix_lengths=[2])
-    artifact = _make_artifact({"m": _ConstantPredictor(20.0)})
+    artifact = _make_artifact({"m": ConstantPredictor(20.0)})
     report = evaluate(artifact, fs, "regression")
     assert set(report.prefix_metrics["m"][2].keys()) == {
         "mae",
@@ -126,7 +110,7 @@ def test_regression_report_metrics_contains_mae_rmse_r2_median_ae():
 
 def test_classification_report_metrics_contains_all_keys():
     fs = _make_feature_set(prefix_lengths=[2])
-    artifact = _make_artifact({"m": _ConstantPredictor(20.0)})
+    artifact = _make_artifact({"m": ConstantPredictor(20.0)})
     report = evaluate(artifact, fs, "classification")
     assert set(report.prefix_metrics["m"][2].keys()) == {
         "accuracy",
@@ -147,35 +131,35 @@ def test_classification_report_metrics_contains_all_keys():
 
 def test_mae_is_zero_for_perfect_predictions():
     fs = _make_feature_set(n_per_prefix=5, prefix_lengths=[2])
-    artifact = _make_artifact({"perfect": _ConstantPredictor(20.0)})
+    artifact = _make_artifact({"perfect": ConstantPredictor(20.0)})
     report = evaluate(artifact, fs, "regression")
     assert report.prefix_metrics["perfect"][2]["mae"] == pytest.approx(0.0)
 
 
 def test_rmse_is_zero_for_perfect_predictions():
     fs = _make_feature_set(n_per_prefix=5, prefix_lengths=[3])
-    artifact = _make_artifact({"perfect": _ConstantPredictor(30.0)})
+    artifact = _make_artifact({"perfect": ConstantPredictor(30.0)})
     report = evaluate(artifact, fs, "regression")
     assert report.prefix_metrics["perfect"][3]["rmse"] == pytest.approx(0.0)
 
 
 def test_r2_is_one_for_perfect_predictions():
     fs = _make_feature_set(n_per_prefix=5, prefix_lengths=[1])
-    artifact = _make_artifact({"perfect": _ConstantPredictor(10.0)})
+    artifact = _make_artifact({"perfect": ConstantPredictor(10.0)})
     report = evaluate(artifact, fs, "regression")
     assert report.prefix_metrics["perfect"][1]["r2"] == pytest.approx(1.0)
 
 
 def test_mae_is_correct_for_constant_offset():
     fs = _make_feature_set(n_per_prefix=8, prefix_lengths=[2])
-    artifact = _make_artifact({"biased": _ConstantPredictor(25.0)})  # y_true=20
+    artifact = _make_artifact({"biased": ConstantPredictor(25.0)})  # y_true=20
     report = evaluate(artifact, fs, "regression")
     assert report.prefix_metrics["biased"][2]["mae"] == pytest.approx(5.0)
 
 
 def test_rmse_is_correct_for_constant_offset():
     fs = _make_feature_set(n_per_prefix=8, prefix_lengths=[3])
-    artifact = _make_artifact({"biased": _ConstantPredictor(40.0)})  # y_true=30
+    artifact = _make_artifact({"biased": ConstantPredictor(40.0)})  # y_true=30
     report = evaluate(artifact, fs, "regression")
     assert report.prefix_metrics["biased"][3]["rmse"] == pytest.approx(10.0)
 
@@ -184,7 +168,7 @@ def test_accuracy_is_one_for_perfect_predictions():
     fs = _make_feature_set(
         n_per_prefix=5, prefix_lengths=[2], task="classification"
     )
-    artifact = _make_artifact({"perfect": _ConstantPredictor(1)})
+    artifact = _make_artifact({"perfect": ConstantPredictor(1)})
     report = evaluate(artifact, fs, "classification")
     assert report.prefix_metrics["perfect"][2]["accuracy"] == pytest.approx(1.0)
 
@@ -193,7 +177,7 @@ def test_f1_macro_is_one_for_perfect_predictions():
     fs = _make_feature_set(
         n_per_prefix=6, prefix_lengths=[3], task="classification"
     )
-    artifact = _make_artifact({"perfect": _ConstantPredictor(1)})
+    artifact = _make_artifact({"perfect": ConstantPredictor(1)})
     report = evaluate(artifact, fs, "classification")
     assert report.prefix_metrics["perfect"][3]["f1_macro"] == pytest.approx(1.0)
 
@@ -202,7 +186,7 @@ def test_f1_weighted_is_one_for_perfect_predictions():
     fs = _make_feature_set(
         n_per_prefix=7, prefix_lengths=[1], task="classification"
     )
-    artifact = _make_artifact({"perfect": _ConstantPredictor(1)})
+    artifact = _make_artifact({"perfect": ConstantPredictor(1)})
     report = evaluate(artifact, fs, "classification")
     assert report.prefix_metrics["perfect"][1]["f1_weighted"] == pytest.approx(
         1.0
@@ -214,14 +198,14 @@ def test_accuracy_is_zero_for_wrong_constant_predictions():
         n_per_prefix=10, prefix_lengths=[2], task="classification"
     )
     # assume ground truth is always 1, predictor always returns 0
-    artifact = _make_artifact({"bad": _ConstantPredictor(0)})
+    artifact = _make_artifact({"bad": ConstantPredictor(0)})
     report = evaluate(artifact, fs, "classification")
     assert report.prefix_metrics["bad"][2]["accuracy"] == pytest.approx(0.0)
 
 
 def test_median_ae_is_zero_for_perfect_predictions():
     fs = _make_feature_set(n_per_prefix=5, prefix_lengths=[2])
-    artifact = _make_artifact({"perfect": _ConstantPredictor(20.0)})
+    artifact = _make_artifact({"perfect": ConstantPredictor(20.0)})
     report = evaluate(artifact, fs, "regression")
     assert report.prefix_metrics["perfect"][2]["median_ae"] == pytest.approx(
         0.0
@@ -230,7 +214,7 @@ def test_median_ae_is_zero_for_perfect_predictions():
 
 def test_median_ae_is_correct_for_constant_offset():
     fs = _make_feature_set(n_per_prefix=8, prefix_lengths=[2])
-    artifact = _make_artifact({"biased": _ConstantPredictor(25.0)})
+    artifact = _make_artifact({"biased": ConstantPredictor(25.0)})
     report = evaluate(artifact, fs, "regression")
     assert report.prefix_metrics["biased"][2]["median_ae"] == pytest.approx(5.0)
 
@@ -239,7 +223,7 @@ def test_precision_macro_is_one_for_perfect_predictions():
     fs = _make_feature_set(
         n_per_prefix=5, prefix_lengths=[2], task="classification"
     )
-    artifact = _make_artifact({"perfect": _ConstantPredictor(1)})
+    artifact = _make_artifact({"perfect": ConstantPredictor(1)})
     report = evaluate(artifact, fs, "classification")
     assert report.prefix_metrics["perfect"][2][
         "precision_macro"
@@ -250,7 +234,7 @@ def test_recall_macro_is_one_for_perfect_predictions():
     fs = _make_feature_set(
         n_per_prefix=6, prefix_lengths=[3], task="classification"
     )
-    artifact = _make_artifact({"perfect": _ConstantPredictor(1)})
+    artifact = _make_artifact({"perfect": ConstantPredictor(1)})
     report = evaluate(artifact, fs, "classification")
     assert report.prefix_metrics["perfect"][3]["recall_macro"] == pytest.approx(
         1.0
@@ -261,7 +245,7 @@ def test_roc_auc_is_nan_for_single_class_group():
     fs = _make_feature_set(
         n_per_prefix=5, prefix_lengths=[2], task="classification"
     )
-    artifact = _make_artifact({"m": _ConstantPredictor(1)})
+    artifact = _make_artifact({"m": ConstantPredictor(1)})
     report = evaluate(artifact, fs, "classification")
     assert np.isnan(report.prefix_metrics["m"][2]["roc_auc"])
 
@@ -270,7 +254,7 @@ def test_pr_auc_is_one_for_single_class_perfect_predictions():
     fs = _make_feature_set(
         n_per_prefix=5, prefix_lengths=[2], task="classification"
     )
-    artifact = _make_artifact({"m": _ConstantPredictor(1)})
+    artifact = _make_artifact({"m": ConstantPredictor(1)})
     report = evaluate(artifact, fs, "classification")
     assert report.prefix_metrics["m"][2]["pr_auc"] == pytest.approx(1.0)
 
@@ -292,7 +276,7 @@ def test_roc_auc_is_05_for_constant_predictor_multi_class():
         trace_ids_train=pd.Series(),
         trace_ids_test=pd.Series(),
     )
-    artifact = _make_artifact({"constant": _ConstantPredictor(0)})
+    artifact = _make_artifact({"constant": ConstantPredictor(0)})
     report = evaluate(artifact, fs, "classification")
     assert report.prefix_metrics["constant"][2]["roc_auc"] == pytest.approx(0.5)
 
@@ -304,7 +288,7 @@ def test_roc_auc_is_05_for_constant_predictor_multi_class():
 
 def test_r2_is_nan_for_single_sample_prefix():
     fs = _make_feature_set(n_per_prefix=1, prefix_lengths=[1])
-    artifact = _make_artifact({"m": _ConstantPredictor(10.0)})
+    artifact = _make_artifact({"m": ConstantPredictor(10.0)})
     report = evaluate(artifact, fs, "regression")
     assert np.isnan(report.prefix_metrics["m"][1]["r2"])
 
@@ -323,7 +307,7 @@ def test_missing_prefix_length_column_raises():
         trace_ids_train=pd.Series(),
         trace_ids_test=pd.Series(),
     )
-    artifact = _make_artifact({"m": _ConstantPredictor(15.0)})
+    artifact = _make_artifact({"m": ConstantPredictor(15.0)})
     with pytest.raises(
         ValueError, match="BasicControlFlowFeatures__prefix_length"
     ):
@@ -332,7 +316,7 @@ def test_missing_prefix_length_column_raises():
 
 def test_all_prefix_lengths_have_all_metrics():
     fs = _make_feature_set(n_per_prefix=5, prefix_lengths=[1, 2, 3])
-    artifact = _make_artifact({"m": _ConstantPredictor(20.0)})
+    artifact = _make_artifact({"m": ConstantPredictor(20.0)})
     report = evaluate(artifact, fs, "regression")
     for pl in [1, 2, 3]:
         assert set(report.prefix_metrics["m"][pl].keys()) == {
@@ -346,7 +330,7 @@ def test_all_prefix_lengths_have_all_metrics():
 def test_multiple_models_all_evaluated():
     fs = _make_feature_set(n_per_prefix=5, prefix_lengths=[2])
     artifact = _make_artifact(
-        {"fast": _ConstantPredictor(20.0), "slow": _ConstantPredictor(25.0)}
+        {"fast": ConstantPredictor(20.0), "slow": ConstantPredictor(25.0)}
     )
     report = evaluate(artifact, fs, "regression")
     assert "fast" in report.prefix_metrics
@@ -361,7 +345,7 @@ def test_multiple_models_all_evaluated():
 def test_prefix_counts_populated():
     """evaluate() stores the number of test samples per prefix length."""
     fs = _make_feature_set(n_per_prefix=7, prefix_lengths=[1, 3, 5])
-    artifact = _make_artifact({"m": _ConstantPredictor(15.0)})
+    artifact = _make_artifact({"m": ConstantPredictor(15.0)})
     report = evaluate(artifact, fs, "regression")
     assert report.prefix_counts == {1: 7, 3: 7, 5: 7}
 
@@ -375,7 +359,7 @@ def test_compare_models_weighted_avg_equal_counts():
     """When all prefix lengths have equal sample counts, the weighted
     average equals the simple average."""
     fs = _make_feature_set(n_per_prefix=10, prefix_lengths=[1, 2, 3])
-    artifact = _make_artifact({"m": _ConstantPredictor(20.0)})
+    artifact = _make_artifact({"m": ConstantPredictor(20.0)})
     report = evaluate(artifact, fs, "regression")
     result = compare_models(report, "regression")
     assert result is not None
@@ -415,7 +399,7 @@ def test_compare_models_weighted_avg_differs_when_unequal():
         trace_ids_test=pd.Series(),
     )
 
-    artifact = _make_artifact({"m": _ConstantPredictor(10.0)})
+    artifact = _make_artifact({"m": ConstantPredictor(10.0)})
     report = evaluate(artifact, fs, "regression")
 
     # Verify the underlying metrics
@@ -445,7 +429,7 @@ def test_compare_models_f1_weighted_for_classification():
     fs = _make_feature_set(
         n_per_prefix=5, prefix_lengths=[1, 2], task="classification"
     )
-    artifact = _make_artifact({"perfect": _ConstantPredictor(1)})
+    artifact = _make_artifact({"perfect": ConstantPredictor(1)})
     report = evaluate(artifact, fs, "classification")
     result = compare_models(report, "classification")
     assert result is not None
@@ -456,7 +440,7 @@ def test_compare_models_f1_weighted_for_classification():
 def test_compare_models_regression_uses_rmse():
     """Regression task uses rmse for ranking."""
     fs = _make_feature_set(n_per_prefix=5, prefix_lengths=[1])
-    artifact = _make_artifact({"m": _ConstantPredictor(10.0)})
+    artifact = _make_artifact({"m": ConstantPredictor(10.0)})
     report = evaluate(artifact, fs, "regression")
     result = compare_models(report, "regression")
     assert result is not None

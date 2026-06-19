@@ -14,28 +14,12 @@ from spi_time_series.evaluation.plots import (
     _plot_predicted_vs_actual,
     _plot_roc_pr_curves,
 )
-
-
-class _DummyModel:
-    """Minimal model stub with predict and predict_proba."""
-
-    def __init__(self, constant: float = 50.0, n_classes: int = 3):
-        self._c = constant
-        self._n_classes = n_classes
-
-    def predict(self, X):
-        return np.full(len(X), self._c)
-
-    def predict_proba(self, X):
-        n = len(X)
-        proba = np.zeros((n, self._n_classes))
-        proba[:, int(self._c) % self._n_classes] = 1.0
-        return proba
+from tests.conftest import ConstantPredictor
 
 
 def _make_regression_data(n: int = 60) -> tuple[dict, pd.DataFrame, pd.Series]:
     models = {
-        "dummy": _DummyModel(constant=60.0, n_classes=1),
+        "dummy": ConstantPredictor(constant=60.0, n_classes=1),
     }
     rng = np.random.default_rng(42)
     a = n // 3
@@ -56,7 +40,7 @@ def _make_classification_data(
     n: int = 60,
 ) -> tuple[dict, pd.DataFrame, pd.Series]:
     models = {
-        "dummy": _DummyModel(constant=1.0, n_classes=3),
+        "dummy": ConstantPredictor(constant=1.0, n_classes=3),
     }
     rng = np.random.default_rng(42)
     a = n // 3
