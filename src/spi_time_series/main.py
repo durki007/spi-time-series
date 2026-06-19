@@ -335,6 +335,40 @@ def _save_predictions(
 # ---------------------------------------------------------------------------
 
 
+def _apply_best_params_to_config(
+    config: RunConfig, best_params: dict[str, dict]
+) -> RunConfig:
+    """Return a new RunConfig with found hyperparameters baked into each model.
+
+    For every model that was searched, its ``params`` field is updated with the
+    best values found and its ``param_grid`` is cleared.  This makes the saved
+    run_config.yaml self-contained: re-running it skips the search stage
+    automatically because param_grid is empty.
+    """
+    import numpy as np
+
+    def _to_scalar(v: Any) -> int | float | str | bool | None:
+        if isinstance(v, np.integer):
+            return int(v)
+        if isinstance(v, np.floating):
+            return float(v)
+        return v  # type: ignore[no-any-return]
+
+    updated_models = {}
+    for name, model_cfg in config.models.items():
+        if name not in best_params:
+            updated_models[name] = model_cfg
+            continue
+        merged = {
+            **model_cfg.params,
+            **{k: _to_scalar(v) for k, v in best_params[name].items()},
+        }
+        updated_models[name] = model_cfg.model_copy(
+            update={"params": merged, "param_grid": {}}
+        )
+    return config.model_copy(update={"models": updated_models})
+
+
 def _compute_extract_key(config: RunConfig) -> str:
     """Hash the config sections that affect the extract stage."""
     return str(
@@ -432,7 +466,8 @@ def main(argv: list[str] | None = None) -> None:
     if pipeline.is_fitted:
         pipeline.evaluate(output_dir=output_dir)
 
-    save_config(config, output_dir / "run_config.yaml")
+    resolved_config = _apply_best_params_to_config(config, pipeline.best_params)
+    save_config(resolved_config, output_dir / "run_config.yaml")
     logger.info("Resolved config saved to %s", output_dir / "run_config.yaml")
 
 
