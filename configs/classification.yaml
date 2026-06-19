@@ -17,8 +17,6 @@ features:
     - WaitingStateFeatures
   exclude_features: []
 
-# scoring omitted: balanced_accuracy only matters when comparing
-# multiple models/thresholds; dummy baseline already checks this
 search:
   n_iter: 10
   cv_folds: 3
