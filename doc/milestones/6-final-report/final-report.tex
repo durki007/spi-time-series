@@ -1,0 +1,269 @@
+% =============================================================================
+% FINAL REPORT — Time-Series-Enhanced Predictive Process Monitoring
+% MSc Project 1 – SPI Lab, RWTH Aachen
+% =============================================================================
+\documentclass[runningheads]{llncs}
+
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{color}
+\usepackage[colorlinks=true, linkcolor=black, citecolor=black, urlcolor=blue]{hyperref}
+\renewcommand\UrlFont{\color{blue}\rmfamily}
+\urlstyle{rm}
+\usepackage{soul}
+\usepackage{subcaption}   % for subfigures
+\usepackage{amsmath}      % for math
+\usepackage{multirow}     % for multi-row cells in tables
+
+\begin{document}
+
+\title{MSc Project 1: Time-Series-Enhanced Predictive Process Monitoring}
+\subtitle{Final Report}
+\titlerunning{Time-Series-Enhanced PPM: Final Report}
+
+\author{Micha\u{l} Durkalec \and
+    Konstantinos Sakkas \and
+    Roman Le\u{z}ovi\u{c}
+}
+\authorrunning{M. Durkalec et al.}
+
+\institute{Supervised Process Intelligence (SPI) Lab,\\
+    RWTH Aachen University, Aachen, Germany\\
+    \email{office@pads.rwth-aachen.de}}
+
+\maketitle
+
+% =============================================================================
+\begin{abstract}
+% TODO: Write a 150-200 word abstract covering:
+%   - Research question: does incorporating time-series features improve PPM?
+%   - Method: log-based vs time-series-enhanced models for outcome/remaining-time
+%   - Key result: did TS features help? By how much?
+%   - Contribution: open-source pipeline, reproducibility
+\keywords{Predictive Process Monitoring \and Process Mining \and Time-Series Features
+    \and Machine Learning \and Model Evaluation \and Explainability}
+\end{abstract}
+
+% =============================================================================
+\section{Introduction}
+\label{sec:introduction}
+
+% TODO: Context — PPM, event logs, BPIC 2017 (van Dongen 2017).
+% TODO: Problem — standard log-based features discard temporal resource-load info.
+% TODO: Research question — does adding time-series features improve prediction of
+%       outcome (deviation vs normal) and remaining time?
+% TODO: Approach — build a modular pipeline to extract TS features, train baseline
+%       (log-only) and enhanced (log + TS) models, compare.
+% TODO: Contribution — open-source pipeline, empirical comparison, analysis of when
+%       TS features help.
+% TODO: Outline of the paper.
+
+% =============================================================================
+\section{Data and Preprocessing}
+\label{sec:data}
+
+\subsection{Event Log: BPI Challenge 2017}
+\label{sec:bpic2017}
+% TODO: Describe BPIC 2017 (van Dongen 2017): ~31k cases, ~1.2M events, 26 activities.
+% TODO: Two target labels — outcome (deviant/regular) and remaining time (continuous).
+% TODO: Data statistics (table: cases, events, activities, time span, label distribution).
+
+\subsection{Preprocessing Pipeline}
+\label{sec:preprocessing}
+% TODO: Cleaning — filter incomplete traces, handle missing timestamps.
+% TODO: Sliding-window prefix extraction — each case produces prefixes of length 1..L.
+% TODO: Temporal split — train on earlier cases, test on later cases (no leakage).
+% TODO: Table of preprocessing configuration parameters (split quantile, min/max prefix etc.).
+
+\subsection{Temporal Train-Test Split}
+\label{sec:split}
+% TODO: Why temporal split matters (standard random split leaks future information).
+% TODO: Exact split point / quantile used.
+% TODO: Number of train/test cases and prefixes before and after split.
+
+% =============================================================================
+\section{Feature Engineering}
+\label{sec:features}
+
+\subsection{Log-Based Features (Baseline)}
+\label{sec:log-features}
+% TODO: Features derived purely from the event log:
+%   - Categorical: last activity, activity prefix encoding (?)
+%   - Numerical: prefix length, time since start, time since last event
+%   - Aggregated: activity counts per prefix
+% % TODO: Feature set size, encoding strategy (one-hot? embeddings?).
+
+\subsection{Time-Series Features (Enhanced)}
+\label{sec:ts-features}
+% TODO: Active-case count — number of cases active at the timestamp of the last event
+%       in a prefix.
+% TODO: Rolling-window statistics over the active-case series (mean, std, min, max,
+%       trend over 1h/6h/24h windows).
+% TODO: Alignment — each prefix gets TS features aligned by its last event timestamp,
+%       preserving temporal ordering.
+% TODO: Dimensionality reduction (optional PCA) and feature pruning via config.
+
+\subsection{Feature Extraction Pipeline}
+\label{sec:extraction}
+% TODO: Modular pipeline (data/schemas.py, features/extraction.py).
+% TODO: PrefixFeature protocol — any class implementing it can be added.
+% TODO: Vectorised computation (performance improvement over per-window loops).
+
+% =============================================================================
+\section{Model Specification and Evaluation Protocol}
+\label{sec:models}
+
+\subsection{Prediction Tasks}
+\label{sec:tasks}
+\begin{itemize}
+    \item \textbf{Outcome prediction (binary classification):} predict whether a case
+          will end in a deviant state vs regular completion. Decayed AUC-PR.
+    \item \textbf{Remaining-time prediction (regression):} predict time (in hours) until
+          case completion. Decayed MAE.
+\end{itemize}
+
+\subsection{Models}
+\label{sec:model-list}
+% TODO: List models used. For each:
+%   - Random Forest
+%   - XGBoost
+%   - Gradient Boosting (or LightGBM?)
+%   - Logistic Regression (for classification)
+%   - (maybe) LSTM baseline
+% TODO: Table: model name, type, hyperparameter search space, library.
+
+\subsection{Hyperparameter Optimisation}
+\label{sec:hpo}
+% TODO: RandomizedSearchCV per model.
+% TODO: Search iterations, CV folds (configurable).
+% TODO: Search sample size (limit prefixes for faster HPO).
+
+\subsection{Prefix-Length Selection}
+\label{sec:prefix}
+% TODO: Plateau detection — find shortest prefix where metric improvement < threshold.
+% TODO: Evaluation across prefix lengths 1..L (or up to a max).
+% TODO: Why prefix length matters for practical deployment.
+
+\subsection{Evaluation Metrics}
+\label{sec:metrics}
+\begin{itemize}
+    \item \textbf{Classification (outcome):} AUC-PRC, AUC-ROC, F1-score.
+    \item \textbf{Regression (remaining time):} MAE, RMSE, (maybe) MAPE.
+    \item \textbf{Decayed metrics:} weight more recent prefixes higher.
+\end{itemize}
+
+\subsection{Baseline vs Enhanced Comparison}
+\label{sec:comparison-protocol}
+% TODO: Every model trained twice — once with log-only features, once with log+TS features.
+% TODO: Same HPO, same prefix lengths, same train/test split.
+% TODO: Feature-impact tool (evaluation/evaluate_feature_impact.py) produces paired tables.
+
+% =============================================================================
+\section{Results}
+\label{sec:results}
+
+\subsection{Outcome Prediction}
+\label{sec:results-outcome}
+% TODO: Main table — AUC-PRC for each model, log-only vs TS-enhanced, at plateau prefix.
+% TODO: Line plots — metric vs prefix length for baseline and enhanced (one per model).
+% TODO: Highlight: which models improved? Which stayed same? Which got worse?
+% TODO: Statistical significance test? (McNemar / Wilcoxon)
+
+\subsection{Remaining-Time Prediction}
+\label{sec:results-time}
+% TODO: Same structure as outcome but with MAE.
+% TODO: Table of MAE at plateau prefix.
+% TODO: Line plots.
+
+\subsection{Feature Importance Analysis}
+\label{sec:feature-importance}
+% TODO: Permutation importance — top N features per model.
+% TODO: Do TS features appear in top features? At which prefix lengths?
+% TODO: Heatmap of TS feature importance across prefix lengths.
+
+\subsection{Ablation: Which Time-Series Features Matter?}
+\label{sec:ablation}
+% TODO: Add/remove individual TS features, measure impact on performance.
+% TODO: Does rolling-window window size matter?
+
+% =============================================================================
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{Do Time-Series Features Improve Predictive Performance?}
+\label{sec:discussion-value}
+% TODO: Summary answer — yes/no, under what conditions.
+% TODO: Quantify improvement (or lack thereof).
+
+\subsection{Why Time-Series Features Help (or Do Not)}
+\label{sec:discussion-why}
+% TODO: For outcome prediction — resource contention signals may indicate bottlenecks
+%       leading to deviations.
+% TODO: For remaining time — active-case count correlates with queue wait times.
+% TODO: If TS did NOT help: explain possible reasons — BPIC 2017 workload may be
+%       relatively stable, TS features add noise, model complexity, etc.
+
+\subsection{Computational Overhead}
+\label{sec:discussion-overhead}
+% TODO: Time to extract TS features vs log features (seconds per prefix).
+% TODO: Cost-vs-benefit tradeoff.
+
+\subsection{Generalisability and Limitations}
+\label{sec:discussion-limits}
+% TODO: Results may not generalise to logs with different temporal patterns.
+% TODO: Only tested on one dataset (BPIC 2017).
+% TODO: Only two families of TS features (active-case count + rolling stats).
+% TODO: No deep learning models.
+% TODO: Temporal split is deterministic — could use time-series CV.
+
+% =============================================================================
+\section{Threats to Validity}
+\label{sec:threats}
+% TODO: Internal — hyperparameter search may favour one feature set over another;
+%       we used identical search spaces to mitigate.
+% TODO: External — single dataset limits generalisability.
+% TODO: Construct — decayed metrics are one choice; results may differ with
+%       different weighting schemes or metrics.
+% TODO: Reliability — pipeline is deterministic given same config.
+
+% =============================================================================
+\section{Conclusion}
+\label{sec:conclusion}
+
+\subsection{Summary}
+\label{sec:summary}
+% TODO: Restate RQ, method, key findings.
+
+% =============================================================================
+\subsection*{Data and Code Availability}
+% TODO: Link to GitHub repository (https://github.com/durki007/spi-time-series).
+% TODO: Instructions to reproduce — poetry install, python -m spi_time_series.main ...
+
+% =============================================================================
+
+\begin{thebibliography}{8}
+    \bibitem{bpic2017}
+    van Dongen, B.F.: BPI Challenge 2017. Eindhoven University of Technology (2017). \url{https://research.tue.nl/en/datasets/bpi-challenge-2017}
+\end{thebibliography}
+\end{document}
+
+% =============================================================================
+\appendix
+
+\section{Appendix: Additional Results}
+\label{app:additional-results}
+% TODO: Full metric tables for every model at every prefix length (log-only and TS).
+% TODO: Learning curves, convergence plots.
+
+\section{Appendix: Configuration Files}
+\label{app:configs}
+% TODO: List of YAML config files used, key parameters.
+
+\section{Appendix: Feature Descriptions}
+\label{app:features}
+% TODO: Full list of all features (log-based and TS) with descriptions.
+
+\end{document}

@@ -35,46 +35,13 @@ from sklearn.metrics import (
     roc_curve,
 )
 
-from spi_time_series.evaluation.metrics import _PREFIX_LENGTH_COL
+from spi_time_series.evaluation.metrics import (
+    _PREFIX_LENGTH_COL,
+    detect_task,
+    select_primary_metric,
+)
 
 logger = logging.getLogger(__name__)
-
-_REGRESSION_COLS = {"mae", "rmse", "r2", "median_ae"}
-_CLASSIFICATION_COLS = {
-    "accuracy",
-    "f1_macro",
-    "f1_weighted",
-    "precision_macro",
-    "recall_macro",
-    "roc_auc",
-    "pr_auc",
-}
-
-
-def _detect_task(columns: set[str]) -> str:
-    if _REGRESSION_COLS.intersection(columns):
-        return "regression"
-    if _CLASSIFICATION_COLS.intersection(columns):
-        return "classification"
-    raise ValueError(f"Cannot detect task type from columns: {sorted(columns)}")
-
-
-def _select_primary_metric(task: str, columns: set[str]) -> str:
-    if task == "regression":
-        for m in ("rmse", "mae", "r2", "median_ae"):
-            if m in columns:
-                return m
-    elif task == "classification":
-        for m in (
-            "f1_weighted",
-            "roc_auc",
-            "pr_auc",
-            "f1_macro",
-            "accuracy",
-        ):
-            if m in columns:
-                return m
-    raise ValueError("No recognized metric column found")
 
 
 # ---------------------------------------------------------------------------
@@ -387,8 +354,8 @@ def main() -> None:
         sys.exit(f"Evaluation report not found: {csv_path}")
     df = pd.read_csv(csv_path)
 
-    task = _detect_task(set(df.columns))
-    metric = _select_primary_metric(task, set(df.columns))
+    task = detect_task(set(df.columns))
+    metric = select_primary_metric(task, set(df.columns))
     logger.info("Detected task: %s, primary metric: %s", task, metric)
 
     _plot_metric_vs_prefix(

@@ -32,6 +32,47 @@ logger = logging.getLogger(__name__)
 
 _PREFIX_LENGTH_COL = "BasicControlFlowFeatures__prefix_length"
 
+_REGRESSION_METRICS = frozenset({"mae", "rmse", "r2", "median_ae"})
+_CLASSIFICATION_METRICS = frozenset(
+    {
+        "accuracy",
+        "balanced_accuracy",
+        "f1_macro",
+        "f1_weighted",
+        "precision_macro",
+        "recall_macro",
+        "roc_auc",
+        "pr_auc",
+    }
+)
+_METRIC_PREFERENCE: dict[str, tuple[str, ...]] = {
+    "regression": ("rmse", "mae", "r2", "median_ae"),
+    "classification": (
+        "f1_weighted",
+        "roc_auc",
+        "pr_auc",
+        "f1_macro",
+        "accuracy",
+        "precision_macro",
+        "recall_macro",
+    ),
+}
+
+
+def detect_task(columns: set[str]) -> str:
+    if _REGRESSION_METRICS & columns:
+        return "regression"
+    if _CLASSIFICATION_METRICS & columns:
+        return "classification"
+    raise ValueError(f"Cannot detect task type from columns: {sorted(columns)}")
+
+
+def select_primary_metric(task: str, columns: set[str]) -> str:
+    for m in _METRIC_PREFERENCE[task]:
+        if m in columns:
+            return m
+    raise ValueError(f"No recognized metric column found in {sorted(columns)}")
+
 
 def _macro_roc_auc(y_true, y_score):
     """Macro-averaged ROC AUC for multi-class via one-vs-rest.
