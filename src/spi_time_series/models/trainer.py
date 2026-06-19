@@ -106,11 +106,12 @@ def search_hyperparams(
     ):
         remaining = total - idx - 1
         logger.info(
-            "Searching '%s' (%d/%d, %d remaining)…",
+            "Searching '%s' (%d/%d, %d remaining): %r",
             name,
             idx + 1,
             total,
             remaining,
+            estimator,
         )
         grid = param_grids.get(name, {})
         if not grid:
@@ -164,7 +165,7 @@ def train(
     for name, estimator in tqdm(
         models.items(), desc="Training models", unit="model"
     ):
-        logger.info("Fitting '%s'…", name)
+        logger.info("Fitting '%s': %r", name, estimator)
 
         steps = [("preprocessor", _build_numeric_preprocessor())]
 
