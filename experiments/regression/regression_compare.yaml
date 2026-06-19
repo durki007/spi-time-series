@@ -4,11 +4,11 @@ checkpoint_dir: ../data/checkpoints
 data:
   top_k_variants: null
   split_quantile: 0.8
-  dev_mode: true
+  # dev_mode: true
 
 prefix:
   min_length: 3
-  # max_length: 10
+  max_length: 100
 
 features:
   one_hot_encode_categorical: false
