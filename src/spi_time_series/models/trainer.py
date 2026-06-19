@@ -85,6 +85,7 @@ def search_hyperparams(
             len(X_train),
             search_config.search_sample_size,
         )
+
         X_train = X_train.sample(
             n=search_config.search_sample_size,
             random_state=search_config.random_state,
@@ -124,6 +125,7 @@ def search_hyperparams(
             n_jobs=n_jobs,
             refit=False,
             verbose=0,
+            scoring=search_config.scoring,
         )
         cv.fit(X_num, y_train)
 

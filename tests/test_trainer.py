@@ -34,12 +34,17 @@ def numeric_feature_set():
     y_train = pd.Series(rng.random(N_TRAIN) * 100, name="remaining_time_hours")
     y_test = pd.Series(rng.random(N_TEST) * 100, name="remaining_time_hours")
 
+    trace_ids_train = pd.Series(["A"] * len(y_train))
+    trace_ids_test = pd.Series(["A"] * len(y_test))
+
     return FeatureSet(
         X_train=X_train,
         X_test=X_test,
         y_train=y_train,
         y_test=y_test,
         feature_names=feature_names,
+        trace_ids_train=trace_ids_train,
+        trace_ids_test=trace_ids_test,
     )
 
 
@@ -116,6 +121,8 @@ def test_artifact_target_col_fallback_when_name_is_none(
         y_train=pd.Series(numeric_feature_set.y_train.values),
         y_test=numeric_feature_set.y_test,
         feature_names=numeric_feature_set.feature_names,
+        trace_ids_train=pd.Series(),
+        trace_ids_test=pd.Series(),
     )
     artifact = train(unnamed_fs, simple_models)
     assert artifact.target_col == "target"
@@ -210,6 +217,8 @@ def test_train_with_mixed_columns_does_not_crash():
         y_train=y,
         y_test=y,
         feature_names=list(X.columns),
+        trace_ids_train=pd.Series(),
+        trace_ids_test=pd.Series(),
     )
     artifact = train(fs, {"ridge": Ridge()})
     preds = artifact.models["ridge"].predict(X)
@@ -281,6 +290,8 @@ def test_pca_reduces_dimensionality():
         y_train=y,
         y_test=y,
         feature_names=list(X.columns),
+        trace_ids_train=pd.Series(),
+        trace_ids_test=pd.Series(),
     )
 
     artifact = train(
