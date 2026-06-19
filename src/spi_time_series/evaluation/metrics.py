@@ -6,6 +6,7 @@ import pandas as pd
 from sklearn.metrics import (
     accuracy_score,
     average_precision_score,
+    balanced_accuracy_score,
     f1_score,
     mean_absolute_error,
     median_absolute_error,
@@ -89,11 +90,13 @@ def evaluate(
     groups: dict = X_test.groupby(_PREFIX_LENGTH_COL).groups
     prefix_lengths: list[int] = sorted(int(pl) for pl in groups)
     model_names: list[str] = list(artifact.models)
+    model_predictions: dict[str, pd.Series] = {}
     all_metrics: dict[str, dict[int, dict[str, float]]] = {}
 
     for model_name, pipeline in artifact.models.items():
         logger.info("Evaluating model: %s", model_name)
         y_pred = pd.Series(pipeline.predict(X_test), index=X_test.index)
+        model_predictions[model_name] = y_pred
         y_score = None
         if target_type == "classification" and hasattr(
             pipeline, "predict_proba"
@@ -123,6 +126,9 @@ def evaluate(
                 elif target_type == "classification":
                     model_metrics[int(pl_val)] = {
                         "accuracy": float(accuracy_score(y_true_g, y_pred_g)),
+                        "balanced_accuracy": float(
+                            balanced_accuracy_score(y_true_g, y_pred_g)
+                        ),
                         "f1_macro": float(
                             f1_score(
                                 y_true_g,
@@ -186,6 +192,8 @@ def evaluate(
     }
 
     return EvaluationReport(
+        feature_set=features,
+        model_predictions=model_predictions,
         prefix_metrics=all_metrics,
         model_names=model_names,
         prefix_lengths=prefix_lengths,

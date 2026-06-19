@@ -63,12 +63,16 @@ def _make_feature_set(
     else:
         y = pd.Series(targets, name="remaining_time_hours")
 
+    trace_ids = pd.Series(["A"] * len(y))
+
     return FeatureSet(
         X_train=X,
         X_test=X,
         y_train=y,
         y_test=y,
         feature_names=list(X.columns),
+        trace_ids_train=trace_ids,
+        trace_ids_test=trace_ids,
     )
 
 
@@ -126,6 +130,7 @@ def test_classification_report_metrics_contains_all_keys():
     report = evaluate(artifact, fs, "classification")
     assert set(report.prefix_metrics["m"][2].keys()) == {
         "accuracy",
+        "balanced_accuracy",
         "f1_macro",
         "f1_weighted",
         "precision_macro",
@@ -284,6 +289,8 @@ def test_roc_auc_is_05_for_constant_predictor_multi_class():
         y_train=y,
         y_test=y,
         feature_names=list(X.columns),
+        trace_ids_train=pd.Series(),
+        trace_ids_test=pd.Series(),
     )
     artifact = _make_artifact({"constant": _ConstantPredictor(0)})
     report = evaluate(artifact, fs, "classification")
@@ -313,6 +320,8 @@ def test_missing_prefix_length_column_raises():
         y_train=y,
         y_test=y,
         feature_names=list(X.columns),
+        trace_ids_train=pd.Series(),
+        trace_ids_test=pd.Series(),
     )
     artifact = _make_artifact({"m": _ConstantPredictor(15.0)})
     with pytest.raises(
@@ -402,6 +411,8 @@ def test_compare_models_weighted_avg_differs_when_unequal():
         y_train=y,
         y_test=y,
         feature_names=list(X.columns),
+        trace_ids_train=pd.Series(),
+        trace_ids_test=pd.Series(),
     )
 
     artifact = _make_artifact({"m": _ConstantPredictor(10.0)})

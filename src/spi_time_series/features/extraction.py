@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from multiprocessing import Pool, cpu_count
 
 import numpy as np
@@ -11,14 +11,15 @@ from spi_time_series.data.schemas import (
     PrefixFeature,
     PreprocessedData,
     TargetGenerator,
+    TraceSample,
 )
 
 logger = logging.getLogger(__name__)
 
 
-_worker_features = None
-_worker_target_generator = None
-_worker_col_idx_mapping = None
+_worker_features: list[PrefixFeature] | None = None
+_worker_target_generator: TargetGenerator | None = None
+_worker_col_idx_mapping: dict[str, int] | None = None
 
 
 def _init_worker(features, target_generator, col_idx_mapping):
@@ -31,7 +32,7 @@ def _init_worker(features, target_generator, col_idx_mapping):
     _worker_col_idx_mapping = col_idx_mapping
 
 
-def _process_sample(sample):
+def _process_sample(sample: TraceSample):
     rows = []
     targets = []
 
@@ -46,6 +47,7 @@ def _process_sample(sample):
         )
 
     n_features = sum(len(feature.feature_names) for feature in _worker_features)
+    trace_id = data[0, _worker_col_idx_mapping["case:concept:name"]]
 
     for start_idx, end_idx in sample.prefix_indexes:
         prefix_data = data[start_idx:end_idx]
@@ -74,15 +76,14 @@ def _process_sample(sample):
             )
         )
 
-    return rows, targets
+    return rows, targets, trace_id
 
 
 def generate_feature_matrix(
-    samples,
-    features,
-    target_generator,
-    col_idx_mapping,
-    num_cases=None,
+    samples: Iterable[TraceSample],
+    features: list[PrefixFeature],
+    target_generator: TargetGenerator,
+    col_idx_mapping: dict[str, int],
 ):
     # ---------------------------------------------------------
     # PRECOMPUTE FEATURE NAMES
@@ -104,6 +105,7 @@ def generate_feature_matrix(
 
     all_rows = []
     all_targets = []
+    all_trace_ids = []
 
     with Pool(
         cpu_count(),
@@ -121,13 +123,14 @@ def generate_feature_matrix(
             chunksize=chunk_size,
         )
 
-        for rows, targets in tqdm(
+        for rows, targets, trace_id in tqdm(
             results,
             total=len(samples),
             desc="Processing cases",
         ):
             all_rows.extend(rows)
             all_targets.extend(targets)
+            all_trace_ids.extend(len(rows) * [trace_id])
 
     # ---------------------------------------------------------
     # FINALIZE
@@ -139,95 +142,9 @@ def generate_feature_matrix(
     )
 
     y = pd.Series(all_targets)
+    trace_ids = pd.Series(all_trace_ids)
 
-    return X, y, feature_names
-
-
-# def generate_feature_matrix(
-#     samples: Iterable[TraceSample],
-#     features: list[PrefixFeature],
-#     target_generator: TargetGenerator,
-#     col_idx_mapping: dict[str, int],
-#     num_cases: int | None = None,
-# ) -> tuple[pd.DataFrame, pd.Series, list[str]]:
-
-#     # ---------------------------------------------------------
-#     # PRECOMPUTE FEATURE NAMES
-#     # ---------------------------------------------------------
-
-#     feature_names: list[str] = []
-
-#     for feature in features:
-#         feature_names.extend(
-#             f"{feature.name()}__{name}" for name in feature.feature_names
-#         )
-
-#     n_features = len(feature_names)
-
-#     # ---------------------------------------------------------
-#     # STORAGE
-#     # ---------------------------------------------------------
-
-#     rows = []
-#     targets = []
-
-#     seen_cases = set()
-
-#     pbar = tqdm(total=num_cases, desc="Processing cases")
-
-#     # ---------------------------------------------------------
-#     # MAIN LOOP
-#     # ---------------------------------------------------------
-
-#     for sample in samples:
-#         data = sample.data
-
-#         for start_idx, end_idx in sample.prefix_indexes:
-#             prefix_data = data[start_idx:end_idx]
-
-#             # preallocate row
-#             row = np.empty(n_features, dtype=np.float32)
-#             offset = 0
-
-#             # evaluate features
-#             for feature in features:
-#                 vec = feature(
-#                     prefix_data,
-#                     col_idx_mapping,
-#                 )
-#                 n = len(vec)
-#                 row[offset : offset + n] = vec
-#                 offset += n
-
-#             rows.append(row)
-
-#             targets.append(
-#                 target_generator(
-#                     trace=data,
-#                     start_idx=start_idx,
-#                     end_idx=end_idx,
-#                     col_idx_mapping=col_idx_mapping,
-#                 )
-#             )
-
-#         if sample.case_id not in seen_cases:
-#             seen_cases.add(sample.case_id)
-#             pbar.update(1)
-
-#     pbar.close()
-
-#     # ---------------------------------------------------------
-#     # FINALIZE
-#     # ---------------------------------------------------------
-
-#     X = pd.DataFrame(
-#         np.vstack(rows),
-#         columns=feature_names,
-#     )
-
-#     y = pd.Series(targets)
-
-#     return X, y, feature_names
+    return X, y, feature_names, trace_ids
 
 
 def extract_features_builder(
@@ -277,20 +194,20 @@ def extract_features_builder(
             logger.info("Fitting %s", feature.name())
             feature.fit(data.train_log, data.col_idx, **kwargs)
 
-        X_train, y_train, feature_names = generate_feature_matrix(
-            samples=data.train_log,
-            features=features,
-            target_generator=target_generator,
-            col_idx_mapping=data.col_idx,
-            num_cases=data.num_train_cases,
+        X_train, y_train, feature_names, trace_ids_train = (
+            generate_feature_matrix(
+                samples=data.train_log,
+                features=features,
+                target_generator=target_generator,
+                col_idx_mapping=data.col_idx,
+            )
         )
 
-        X_test, y_test, _ = generate_feature_matrix(
+        X_test, y_test, _, trace_ids_test = generate_feature_matrix(
             samples=data.test_log,
             features=features,
             target_generator=target_generator,
             col_idx_mapping=data.col_idx,
-            num_cases=data.num_test_cases,
         )
 
         # ---------------------------------------------------------
@@ -325,6 +242,8 @@ def extract_features_builder(
             y_train=y_train,
             y_test=y_test,
             feature_names=feature_names,
+            trace_ids_train=trace_ids_train,
+            trace_ids_test=trace_ids_test,
         )
 
     return extract_features

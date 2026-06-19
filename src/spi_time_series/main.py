@@ -239,7 +239,12 @@ def _save_report(
         return
 
     rows = [
-        {"model": model, "prefix_length": pl, **metrics}
+        {
+            "model": model,
+            "prefix_length": pl,
+            "n_prefixes": report.prefix_counts[pl],
+            **metrics,
+        }
         for model, by_prefix in report.prefix_metrics.items()
         for pl, metrics in by_prefix.items()
     ]
@@ -256,6 +261,53 @@ def _save_report(
     path = reports_dir / "evaluation_report.csv"
     df.to_csv(path, index=False)
     logger.info("Evaluation report saved to %s", path)
+
+
+def _save_predictions(
+    artifact: ModelArtifact,
+    report: EvaluationReport,
+    output_dir: Path | None,
+) -> None:
+    if output_dir is None:
+        logger.warning(
+            "No output directory provided; skipping evaluation report."
+        )
+        return
+
+    if report.feature_set is None:
+        logger.warning("No feature set available; skipping prediction export.")
+        return
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    feature_set = report.feature_set
+
+    # -----------------
+    # Train dataset
+    # -----------------
+    train_df = feature_set.X_train.copy()
+    train_df[artifact.target_col] = feature_set.y_train
+    train_df["Trace_ID"] = feature_set.trace_ids_train
+
+    train_path = output_dir / "train.csv"
+    train_df.to_csv(train_path, index=False, sep=";")
+
+    # -----------------
+    # Test dataset
+    # -----------------
+    test_df = feature_set.X_test.copy()
+    test_df[artifact.target_col] = feature_set.y_test
+    test_df["Trace_ID"] = feature_set.trace_ids_test
+
+    # Add predictions from each model
+    for model_name, y_pred in report.model_predictions.items():
+        test_df[f"{model_name}_prediction"] = y_pred
+
+    test_path = output_dir / "test.csv"
+    test_df.to_csv(test_path, index=False, sep=";")
+
+    logger.info("Saved training data to %s", train_path)
+    logger.info("Saved test data and predictions to %s", test_path)
 
 
 # ---------------------------------------------------------------------------
@@ -329,6 +381,7 @@ def main(argv: list[str] | None = None) -> None:
         .add_evaluator(evaluate_feature_importance_per_prefix)
         .add_reporter(_save_prefix_importance_visualizations)
         .add_reporter(_make_model_comparison_reporter(config.task))
+        .add_reporter(_save_predictions)
         .build()
     )
 

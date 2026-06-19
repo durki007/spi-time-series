@@ -45,6 +45,8 @@ class FeatureSet:
     X_test: FeatureMatrix
     y_train: LabelSeries
     y_test: LabelSeries
+    trace_ids_train: pd.Series
+    trace_ids_test: pd.Series
     feature_names: list[str]
 
 
@@ -62,6 +64,8 @@ class EvaluationReport:
     """Evaluation metrics per model name and prefix length.
 
     Attributes:
+        feature_set: Input feature data and target labels
+        y_pred: Per model predictions
         prefix_metrics: Per-model, per-prefix-length metric dictionaries
             (``{model_name: {prefix_length: {metric: value}}}``).
         model_metrics: Per-model metric dictionaries (``{model_name: {metric: value}}``).
@@ -71,6 +75,10 @@ class EvaluationReport:
             (``{prefix_length: count}``).  Used to compute sample-weighted
             aggregate scores in :func:`~spi_time_series.evaluation.metrics.compare_models`.
     """
+
+    # evaluation data
+    feature_set: FeatureSet | None = None
+    model_predictions: dict[str, LabelSeries] = field(default_factory=dict)
 
     # metrics per model per prefix
     prefix_metrics: dict[str, dict[int, dict[str, Any]]] = field(
