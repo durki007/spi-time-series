@@ -5,11 +5,13 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import random
 import sys
 from pathlib import Path
 from typing import Any
 
 import joblib
+import numpy as np
 import pandas as pd
 import yaml
 
@@ -41,7 +43,7 @@ from spi_time_series.features.log_based_features import (
     WaitingStateFeatures,
 )
 from spi_time_series.features.targets import (
-    outcome_target,
+    CLASSIFICATION_TARGETS,
     remaining_time_target,
 )
 from spi_time_series.features.time_series_features import ActiveCaseCountFeature
@@ -212,12 +214,11 @@ def _build_default_feature_extractor(config: RunConfig) -> FeatureExtractor:
             remaining_time_target,
             exclude_features=config.features.exclude_features,
         )
-    else:
-        return extract_features_builder(
-            feature_list,
-            outcome_target,
-            exclude_features=config.features.exclude_features,
-        )
+    return extract_features_builder(
+        feature_list,
+        CLASSIFICATION_TARGETS[config.data.outcome_class],
+        exclude_features=config.features.exclude_features,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -336,6 +337,9 @@ def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(
         level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
     )
+
+    random.seed(42)
+    np.random.seed(42)
 
     args = _parse_args(argv)
 

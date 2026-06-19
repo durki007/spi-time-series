@@ -14,8 +14,8 @@ from spi_time_series.data.schemas import (
     FeatureSet,
     ModelArtifact,
 )
+from spi_time_series.evaluation.metrics import _PREFIX_LENGTH_COL
 
-_PREFIX_LENGTH_COL = "BasicControlFlowFeatures__prefix_length"
 logger = logging.getLogger(__name__)
 
 

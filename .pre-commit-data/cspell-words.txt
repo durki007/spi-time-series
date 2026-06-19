@@ -15,3 +15,7 @@ viridis
 cbar
 sharey
 aggfunc
+axhline
+axvline
+lims
+prec

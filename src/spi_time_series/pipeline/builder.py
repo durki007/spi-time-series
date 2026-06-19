@@ -111,7 +111,6 @@ class PipelineBuilder:
         after from_config() before build().
         """
         from spi_time_series.config.loader import build_estimator
-        from spi_time_series.config.schema import RunConfig  # noqa: F401
         from spi_time_series.data.schemas import PreprocessedData, RawData
         from spi_time_series.preprocessing.preprocess import (
             _build_trace_samples,

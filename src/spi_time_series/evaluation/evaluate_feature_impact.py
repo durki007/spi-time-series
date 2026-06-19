@@ -15,7 +15,6 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from collections.abc import Sequence
 from pathlib import Path
 
 import matplotlib
@@ -25,58 +24,12 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
+from spi_time_series.evaluation.metrics import (
+    detect_task,
+    select_primary_metric,
+)
+
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Metric detection helpers
-# ---------------------------------------------------------------------------
-
-# Preferred metric per task type used for the comparison plot.
-_METRIC_PREFERENCE: dict[str, Sequence[str]] = {
-    "regression": ("rmse", "mae", "r2", "median_ae"),
-    "classification": (
-        "f1_weighted",
-        "roc_auc",
-        "pr_auc",
-        "f1_macro",
-        "accuracy",
-        "precision_macro",
-        "recall_macro",
-    ),
-}
-
-
-def _detect_task_and_metric(
-    df: pd.DataFrame,
-) -> tuple[str, str]:
-    """Infer the task type and pick the primary comparison metric.
-
-    Parameters
-    ----------
-    df:
-        Dataframe loaded from an ``evaluation_report.csv``.
-
-    Returns
-    -------
-    tuple[str, str]
-        ``(task_type, metric_name)``, e.g. ``("regression", "rmse")``.
-
-    Raises
-    ------
-    ValueError
-        When no recognized metric column is present.
-    """
-    cols: set[str] = set(df.columns)
-
-    for task, candidates in _METRIC_PREFERENCE.items():
-        for metric in candidates:
-            if metric in cols:
-                return task, metric
-
-    raise ValueError(
-        f"Cannot detect task type from columns: {sorted(cols)}. "
-        "Expected one of the regression or classification metric sets."
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -291,7 +244,8 @@ def main(argv: list[str] | None = None) -> None:
     df_advanced: pd.DataFrame = _load_report(advanced_path, args.advanced_label)
 
     # --- detect task & metric ---------------------------------------------
-    task, metric = _detect_task_and_metric(df_baseline)
+    task = detect_task(set(df_baseline.columns))
+    metric = select_primary_metric(task, set(df_baseline.columns))
     logger.info("Detected task='%s', primary metric='%s'", task, metric)
 
     # Verify the advanced report has the same metric

@@ -21,6 +21,7 @@ from sklearn.ensemble import (
 from sklearn.linear_model import LogisticRegression, Ridge
 
 TaskType = Literal["regression", "classification"]
+OutcomeFraming = Literal["3class", "2class"]
 
 ESTIMATOR_ALLOWLIST: dict[str, type] = {
     "Ridge": Ridge,
@@ -94,6 +95,7 @@ class DataConfig(BaseModel):
     top_k_variants: int | None = None
     split_quantile: float = 0.8
     dev_mode: bool = False
+    outcome_class: OutcomeFraming = "2class"
 
     @field_validator("top_k_variants")
     @classmethod

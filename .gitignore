@@ -75,5 +75,8 @@ coverage.xml
 # claude settings
 .claude/
 
+# agent instructions
+AGENTS.md
+
 # results
 results
