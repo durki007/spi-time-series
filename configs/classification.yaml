@@ -17,12 +17,13 @@ features:
     - WaitingStateFeatures
   exclude_features: []
 
+# scoring omitted: balanced_accuracy only matters when comparing
+# multiple models/thresholds; dummy baseline already checks this
 search:
   n_iter: 10
   cv_folds: 3
   random_state: 42
   search_sample_size: 50000
-  scoring: "balanced_accuracy"
 
 pca_config:
   active: False
