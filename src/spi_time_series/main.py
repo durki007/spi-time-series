@@ -35,6 +35,7 @@ from spi_time_series.evaluation.metrics import (
     _make_model_comparison_reporter,
     evaluate,
 )
+from spi_time_series.evaluation.shap_explainability import report_shap
 from spi_time_series.features.extraction import extract_features_builder
 from spi_time_series.features.log_based_features import (
     BasicControlFlowFeatures,
@@ -382,6 +383,7 @@ def main(argv: list[str] | None = None) -> None:
         .add_reporter(_save_prefix_importance_visualizations)
         .add_reporter(_make_model_comparison_reporter(config.task))
         .add_reporter(_save_predictions)
+        .add_reporter(report_shap)
         .build()
     )
 
