@@ -7,6 +7,8 @@ import logging
 import os
 import random
 import sys
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -19,8 +21,10 @@ from spi_time_series.config.loader import save_config
 from spi_time_series.config.schema import RunConfig
 from spi_time_series.data.schemas import (
     EvaluationReport,
+    FeatureSet,
     ModelArtifact,
     PrefixFeature,
+    PreprocessedData,
 )
 from spi_time_series.data.types import FeatureExtractor
 from spi_time_series.evaluation.feature_importance import (
@@ -185,6 +189,17 @@ def _apply_overrides(raw: dict, overrides: list[str]) -> dict:
 # ---------------------------------------------------------------------------
 
 
+@dataclass
+class _FeatureExtractorWithFeatures:
+    """Callable wrapper that exposes the feature list for post-fit capture."""
+
+    extractor: Callable[[PreprocessedData], FeatureSet]
+    features: list[PrefixFeature]
+
+    def __call__(self, data: PreprocessedData) -> FeatureSet:
+        return self.extractor(data)
+
+
 def _build_default_feature_extractor(config: RunConfig) -> FeatureExtractor:
     """Build a default feature extractor for CLI use.
 
@@ -210,15 +225,19 @@ def _build_default_feature_extractor(config: RunConfig) -> FeatureExtractor:
             feature_list.append(ActiveCaseCountFeature())
 
     if config.task == "regression":
-        return extract_features_builder(
+        builder = extract_features_builder(
             feature_list,
             remaining_time_target,
             exclude_features=config.features.exclude_features,
         )
-    return extract_features_builder(
-        feature_list,
-        CLASSIFICATION_TARGETS[config.data.outcome_class],
-        exclude_features=config.features.exclude_features,
+    else:
+        builder = extract_features_builder(
+            feature_list,
+            CLASSIFICATION_TARGETS[config.data.outcome_class],
+            exclude_features=config.features.exclude_features,
+        )
+    return _FeatureExtractorWithFeatures(
+        extractor=builder, features=feature_list
     )
 
 
