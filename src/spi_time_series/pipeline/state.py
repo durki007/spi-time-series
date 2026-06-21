@@ -18,6 +18,10 @@ class PipelineState:
 
     features: FeatureSet | None = None
 
+    # Fitted feature objects and column mapping (for prototype predictions)
+    fitted_features: list[Any] | None = None
+    fitted_col_idx_mapping: dict[str, int] | None = None
+
     # Per-model storage (keyed by model name)
     optimized_models: dict[str, BaseEstimator] = field(default_factory=dict)
     trained_models: dict[str, Any] = field(default_factory=dict)

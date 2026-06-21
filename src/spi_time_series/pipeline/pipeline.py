@@ -110,6 +110,14 @@ class Pipeline:
         default=None, init=False, repr=False
     )
 
+    # Fitted feature objects + column mapping (for prototype predictions)
+    _fitted_features: list[Any] | None = field(
+        default=None, init=False, repr=False
+    )
+    _fitted_col_idx_mapping: dict[str, int] | None = field(
+        default=None, init=False, repr=False
+    )
+
     # Per-model cached results
     _optimized_models: dict[str, BaseEstimator] = field(
         default_factory=dict, init=False, repr=False
@@ -140,6 +148,8 @@ class Pipeline:
         the pipeline is immediately ready for evaluate().
         """
         self._features = state.features
+        self._fitted_features = state.fitted_features
+        self._fitted_col_idx_mapping = state.fitted_col_idx_mapping
         self._optimized_models = dict(state.optimized_models)
         self._trained_models = dict(state.trained_models)
         self._extract_key = state.extract_key
@@ -160,6 +170,8 @@ class Pipeline:
         """Capture the current fitted state as a serialisable PipelineState."""
         return PipelineState(
             features=self._features,
+            fitted_features=self._fitted_features,
+            fitted_col_idx_mapping=self._fitted_col_idx_mapping,
             optimized_models=dict(self._optimized_models),
             trained_models=dict(self._trained_models),
             extract_key=self._extract_key,
@@ -209,6 +221,13 @@ class Pipeline:
             logger.info("Extracting features…")
             self._features = self.feature_extractor(preprocessed)
             self._extract_key = extract_key
+
+            if (
+                hasattr(self.feature_extractor, "features")
+                and self.feature_extractor.features
+            ):
+                self._fitted_features = self.feature_extractor.features
+            self._fitted_col_idx_mapping = preprocessed.col_idx
 
             # Cascade: all per-model results are now stale
             self._optimized_models.clear()
