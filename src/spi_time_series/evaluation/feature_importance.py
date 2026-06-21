@@ -14,7 +14,6 @@ from spi_time_series.data.schemas import (
     FeatureSet,
     ModelArtifact,
 )
-from spi_time_series.evaluation.metrics import _PREFIX_LENGTH_COL
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +22,8 @@ def evaluate_feature_importance(
     artifact: ModelArtifact, features: FeatureSet, task: TaskType
 ) -> EvaluationReport:
     feature_importance: dict[str, dict[str, Any]] = {}
-    groups: dict = features.X_test.groupby(_PREFIX_LENGTH_COL).groups
+    pls = features.prefix_lengths_test
+    groups: dict = pls.groupby(pls).groups
     prefix_lengths: list[int] = sorted(int(pl) for pl in groups)
     model_names: list[str] = list(artifact.models)
 
@@ -57,7 +57,8 @@ def evaluate_feature_importance_per_prefix(
 ) -> EvaluationReport:
     prefix_feature_importance: dict[str, dict[int, dict[str, Any]]] = {}
 
-    groups: dict = features.X_test.groupby(_PREFIX_LENGTH_COL).groups
+    pls = features.prefix_lengths_test
+    groups: dict = pls.groupby(pls).groups
     prefix_lengths: list[int] = sorted(int(pl) for pl in groups)
     model_names: list[str] = list(artifact.models)
 
