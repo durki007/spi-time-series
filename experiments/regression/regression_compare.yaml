@@ -19,6 +19,7 @@ features:
     - InteractionFeatures
     - WaitingStateFeatures
     - FinancialFeatures
+    - ActiveCaseCountFeature
     - FinancialVolumeFeature
     - DecisionRateFeature
   exclude_features: []

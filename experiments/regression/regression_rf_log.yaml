@@ -19,8 +19,6 @@ features:
     - InteractionFeatures
     - WaitingStateFeatures
     - FinancialFeatures
-    - FinancialVolumeFeature
-    - DecisionRateFeature
   exclude_features: []
 
 search:
@@ -34,10 +32,11 @@ pca_config:
   keep_variability: 0.95
 
 models:
-  hist_gradient_boosting:
-    model_type: HistGradientBoostingRegressor
+  random_forest:
+    model_type: RandomForestRegressor
     params:
       random_state: 42
-      max_iter: 200
-      max_depth: 5
-      learning_rate: 0.1
+      n_estimators: 150
+      min_samples_split: 10
+      max_features: sqrt
+      max_depth: 10
