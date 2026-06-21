@@ -117,19 +117,29 @@ def evaluate(
     R², ROC AUC and PR AUC are nan for single-sample or single-class prefix
     groups; no exception is raised.
 
-    Requires BasicControlFlowFeatures__prefix_length in features.X_test.
+    If no prefix-length column is found in X_test, evaluation is done on the
+    full test set without per-prefix breakdown (prefix length 0 is used as
+    placeholder).
     """
     X_test = features.X_test
     y_test = features.y_test
 
-    if _PREFIX_LENGTH_COL not in X_test.columns:
-        raise ValueError(
-            f"Column '{_PREFIX_LENGTH_COL}' not found in X_test. "
-            "BasicControlFlowFeatures must be included in the feature pipeline."
+    prefix_cols = [c for c in X_test.columns if c.endswith("__prefix_length")]
+    if prefix_cols:
+        prefix_col = prefix_cols[0]
+    else:
+        logger.warning(
+            "No __prefix_length column found in X_test — "
+            "evaluating on full test set without per-prefix breakdown."
         )
+        prefix_col = None
 
-    groups: dict = X_test.groupby(_PREFIX_LENGTH_COL).groups
-    prefix_lengths: list[int] = sorted(int(pl) for pl in groups)
+    if prefix_col is not None:
+        groups: dict = X_test.groupby(prefix_col).groups
+        prefix_lengths: list[int] = sorted(int(pl) for pl in groups)
+    else:
+        groups = {0: X_test.index}
+        prefix_lengths = [0]
     model_names: list[str] = list(artifact.models)
     model_predictions: dict[str, pd.Series] = {}
     all_metrics: dict[str, dict[int, dict[str, float]]] = {}

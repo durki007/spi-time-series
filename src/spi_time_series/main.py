@@ -27,31 +27,29 @@ from spi_time_series.data.schemas import (
     PreprocessedData,
 )
 from spi_time_series.data.types import FeatureExtractor
-from spi_time_series.evaluation.feature_importance import (
-    evaluate_feature_importance,
-    evaluate_feature_importance_per_prefix,
-    report_feature_importance,
-)
-from spi_time_series.evaluation.feature_importance import (
-    report_prefix_importance_visualizations as _save_prefix_importance_visualizations,
-)
 from spi_time_series.evaluation.metrics import (
     _make_model_comparison_reporter,
     evaluate,
 )
-from spi_time_series.evaluation.shap_explainability import report_shap
 from spi_time_series.features.extraction import extract_features_builder
 from spi_time_series.features.log_based_features import (
+    ActivityCountFeatures,
     BasicControlFlowFeatures,
+    FinancialFeatures,
     InteractionFeatures,
     OfferFeatures,
+    TemporalFeatures,
     WaitingStateFeatures,
 )
 from spi_time_series.features.targets import (
     CLASSIFICATION_TARGETS,
     remaining_time_target,
 )
-from spi_time_series.features.time_series_features import ActiveCaseCountFeature
+from spi_time_series.features.time_series_features import (
+    ActiveCaseCountFeature,
+    DecisionRateFeature,
+    FinancialVolumeFeature,
+)
 from spi_time_series.pipeline import PipelineBuilder
 
 logger = logging.getLogger(__name__)
@@ -221,8 +219,18 @@ def _build_default_feature_extractor(config: RunConfig) -> FeatureExtractor:
             feature_list.append(InteractionFeatures())
         elif name == "WaitingStateFeatures":
             feature_list.append(WaitingStateFeatures())
+        elif name == "ActivityCountFeatures":
+            feature_list.append(ActivityCountFeatures())
+        elif name == "TemporalFeatures":
+            feature_list.append(TemporalFeatures())
+        elif name == "FinancialFeatures":
+            feature_list.append(FinancialFeatures())
         elif name == "ActiveCaseCountFeature":
             feature_list.append(ActiveCaseCountFeature())
+        elif name == "FinancialVolumeFeature":
+            feature_list.append(FinancialVolumeFeature())
+        elif name == "DecisionRateFeature":
+            feature_list.append(DecisionRateFeature())
 
     if config.task == "regression":
         builder = extract_features_builder(
@@ -396,13 +404,8 @@ def main(argv: list[str] | None = None) -> None:
         .with_feature_extractor(_build_default_feature_extractor(config))
         .add_evaluator(evaluate)
         .add_reporter(_save_report)
-        .add_evaluator(evaluate_feature_importance)
-        .add_reporter(report_feature_importance)
-        .add_evaluator(evaluate_feature_importance_per_prefix)
-        .add_reporter(_save_prefix_importance_visualizations)
         .add_reporter(_make_model_comparison_reporter(config.task))
         .add_reporter(_save_predictions)
-        .add_reporter(report_shap)
         .build()
     )
 

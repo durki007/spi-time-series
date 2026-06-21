@@ -52,7 +52,12 @@ _FEATURES = {
     "OfferFeatures",
     "InteractionFeatures",
     "WaitingStateFeatures",
+    "ActivityCountFeatures",
+    "TemporalFeatures",
+    "FinancialFeatures",
     "ActiveCaseCountFeature",
+    "FinancialVolumeFeature",
+    "DecisionRateFeature",
 }
 
 

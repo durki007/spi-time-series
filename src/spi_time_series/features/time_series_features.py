@@ -10,10 +10,6 @@ logger = logging.getLogger(__name__)
 
 
 class ActiveCaseCountFeature:
-    """
-    Feature extractor that computes the number of active cases at the time of the last event in the prefix.
-    """
-
     time_series: pd.DataFrame
     cleaned_event_log: pd.DataFrame
     featured_df: pd.DataFrame
@@ -83,22 +79,22 @@ class ActiveCaseCountFeature:
         return result
 
 
+def _fill_hourly_grid(df: pd.DataFrame) -> pd.DataFrame:
+    full_grid = pd.date_range(
+        df["timestamp"].min(), df["timestamp"].max(), freq="1h"
+    )
+    value_cols = [c for c in df.columns if c != "timestamp"]
+    df = df.set_index("timestamp").reindex(full_grid).reset_index()
+    df = df.rename(columns={"index": "timestamp"})
+    for col in value_cols:
+        df[col] = df[col].fillna(0)
+    return df
+
+
 def extract_time_series_features(time_series_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Compute rolling window statistics for active case counts.
-
-    Expects a dataframe containing an `active_cases` column and either a
-    `timestamp` column or a DatetimeIndex. Returns the enriched dataframe
-    with `timestamp` as a column.
-    """
-    if "active_cases" not in time_series_df.columns:
-        raise KeyError("Missing required column: active_cases")
-
     df = time_series_df.copy()
 
-    if not isinstance(df.index, pd.DatetimeIndex):
-        if "timestamp" not in df.columns:
-            raise KeyError("Missing required column: timestamp")
+    if "timestamp" in df.columns:
         df["timestamp"] = pd.to_datetime(df["timestamp"])
         df = df.set_index("timestamp")
 
@@ -107,35 +103,13 @@ def extract_time_series_features(time_series_df: pd.DataFrame) -> pd.DataFrame:
 
     df = df.sort_index()
 
-    df["time_series_hour"] = df.index.hour
-    df["time_series_dayofweek"] = df.index.dayofweek
-    df["time_series_is_weekend"] = (df.index.dayofweek >= 5).astype(int)
+    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
 
-    for window in ("1h", "6h", "12h", "24h"):
-        rolling_window = df["active_cases"].rolling(window)
-        df[f"active_cases__window_mean_{window}"] = rolling_window.mean()
-        df[f"active_cases__window_max_{window}"] = rolling_window.max()
-        df[f"active_cases__window_std_{window}"] = rolling_window.std()
-
-    df["active_cases__lag_1h"] = df["active_cases"].shift(1)
-    df["active_cases__trend_1h"] = (
-        df["active_cases"] - df["active_cases__lag_1h"]
-    )
-    df["active_cases__lag_6h"] = df["active_cases"].shift(6)
-    df["active_cases__trend_6h"] = (
-        df["active_cases"] - df["active_cases__lag_6h"]
-    )
-    df["active_cases__lag_12h"] = df["active_cases"].shift(12)
-    df["active_cases__trend_12h"] = (
-        df["active_cases"] - df["active_cases__lag_12h"]
-    )
-    df["active_cases__lag_24h"] = df["active_cases"].shift(24)
-    df["active_cases__trend_24h"] = (
-        df["active_cases"] - df["active_cases__lag_24h"]
-    )
+    for col in numeric_cols:
+        df[f"{col}__window_mean_8h"] = df[col].rolling("8h").mean()
+        df[f"{col}__trend_8h"] = df[col] - df[col].shift(8)
 
     df = df.bfill()
-    # replace any remaining NaNs (e.g., std over a single-sample window) with 0
     df = df.fillna(0)
 
     return df.reset_index()
@@ -144,9 +118,6 @@ def extract_time_series_features(time_series_df: pd.DataFrame) -> pd.DataFrame:
 def align_features_to_prefixes(
     prefix_df: pd.DataFrame, feature_df: pd.DataFrame
 ) -> pd.DataFrame:
-    """
-    Sort prefix and feature dataframes and merge time-series features.
-    """
     if "last_event_timestamp" not in prefix_df.columns:
         raise KeyError("Missing required column: last_event_timestamp")
     if "timestamp" not in feature_df.columns:
@@ -171,23 +142,6 @@ def align_features_to_prefixes(
 
 
 def preprocess_time_series(event_log_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Build a continuous hourly timestamp grid for a time-series event log.
-
-    The grid spans the full log from the minimum start time to the maximum
-    end time and uses a 1-hour frequency. The returned frame includes
-    active case counts for each timestamp.
-
-    Args:
-        event_log_df: DataFrame with columns ``case_id``, ``start_time``,
-            and ``end_time``.
-
-    Returns:
-        DataFrame with ``timestamp`` and ``active_cases`` columns.
-
-    Raises:
-        KeyError: If any required column is missing.
-    """
     required_columns = {"case_id", "start_time", "end_time"}
     missing_columns = required_columns.difference(event_log_df.columns)
     if missing_columns:
@@ -212,7 +166,7 @@ def preprocess_time_series(event_log_df: pd.DataFrame) -> pd.DataFrame:
     max_end_time = end_times.max()
 
     span_hours = (max_end_time - min_start_time).total_seconds() / 3600.0
-    if span_hours > 876_000:  # ~100 years
+    if span_hours > 876_000:
         raise ValueError(
             f"Timestamp span of {span_hours:.0f} hours exceeds maximum "
             f"allowed range (876,000 hours). "
@@ -228,8 +182,6 @@ def preprocess_time_series(event_log_df: pd.DataFrame) -> pd.DataFrame:
 
     logger.debug("Built timestamp grid: %d hourly steps", len(timestamp_grid))
 
-    # --- Vectorized event-based cumulative sum ---
-    # Step 1: Create events — +1 when a case starts, -1 when it ends.
     events = pd.concat(
         [
             pd.Series(1, index=start_times, dtype="int64"),
@@ -237,15 +189,11 @@ def preprocess_time_series(event_log_df: pd.DataFrame) -> pd.DataFrame:
         ]
     )
 
-    # Step 2: Sort chronologically and compute the running count of active cases.
     events = events.sort_index()
     active_cases = events.cumsum()
 
-    # Step 3: For duplicate timestamps keep only the *last* cumsum value
-    #         (i.e. after all events at that instant have been applied).
     active_cases = active_cases[~active_cases.index.duplicated(keep="last")]
 
-    # Step 4: Align the irregular event-based series to the strict 1‑hour grid.
     active_df = pd.DataFrame(
         {"timestamp": active_cases.index, "active_cases": active_cases.values}
     )
@@ -258,7 +206,6 @@ def preprocess_time_series(event_log_df: pd.DataFrame) -> pd.DataFrame:
         direction="backward",
     )
 
-    # Timestamps before the first event have no active cases.
     time_series["active_cases"] = (
         time_series["active_cases"].fillna(0).astype(int)
     )
@@ -270,3 +217,107 @@ def preprocess_time_series(event_log_df: pd.DataFrame) -> pd.DataFrame:
     )
 
     return time_series
+
+
+class _BaseGlobalTSFeature:
+    _ts_array: np.ndarray
+    _features_array: np.ndarray
+    feature_names: list[str]
+
+    def fit(
+        self,
+        event_log: Iterable[TraceSample],
+        col_idx_mapping: dict[str, int],
+        **config_kwargs,
+    ):
+        cleaned_log = config_kwargs.get("cleaned_log")
+        if cleaned_log is None:
+            raise ValueError(
+                f"{type(self).__name__}.fit() requires 'cleaned_log' kwarg."
+            )
+        self.cleaned_event_log = cleaned_log
+        self.time_series = self._preprocess_time_series()
+        self.featured_df = extract_time_series_features(self.time_series)
+        self.featured_df = self.featured_df.sort_values(
+            "timestamp"
+        ).reset_index(drop=True)
+        self.feature_names = [
+            col for col in self.featured_df.columns if col != "timestamp"
+        ]
+        self._ts_array = self.featured_df["timestamp"].to_numpy()
+        self._features_array = self.featured_df[self.feature_names].to_numpy(
+            dtype=np.float32
+        )
+
+    def __call__(
+        self, prefix: np.ndarray, col_idx_mapping: dict[str, int]
+    ) -> np.ndarray:
+        ts = pd.to_datetime(prefix[-1, col_idx_mapping["time:timestamp"]])
+        if self._ts_array.size == 0:
+            return np.zeros(len(self.feature_names), dtype=np.float32)
+        idx = np.searchsorted(self._ts_array, ts, side="right") - 1
+        if idx < 0:
+            idx = 0
+        return self._features_array[idx]
+
+    def _preprocess_time_series(self) -> pd.DataFrame:
+        raise NotImplementedError
+
+
+class FinancialVolumeFeature(_BaseGlobalTSFeature):
+    def name(self) -> str:
+        return "financial_volume"
+
+    def _preprocess_time_series(self) -> pd.DataFrame:
+        df = self.cleaned_event_log.copy()
+        df["hour"] = df["time:timestamp"].dt.floor("h")
+        result = (
+            df.groupby("hour")
+            .agg(
+                total_withdrawal_amount=("FirstWithdrawalAmount", "sum"),
+                mean_withdrawal_amount=("FirstWithdrawalAmount", "mean"),
+                total_offer_amount=("OfferedAmount", "sum"),
+                mean_offer_amount=("OfferedAmount", "mean"),
+                total_monthly_cost=("MonthlyCost", "sum"),
+                mean_monthly_cost=("MonthlyCost", "mean"),
+            )
+            .reset_index()
+        )
+        result = result.rename(columns={"hour": "timestamp"})
+        return _fill_hourly_grid(result)
+
+
+class DecisionRateFeature(_BaseGlobalTSFeature):
+    def name(self) -> str:
+        return "decision_rate"
+
+    def _preprocess_time_series(self) -> pd.DataFrame:
+        df = self.cleaned_event_log.copy()
+        df["hour"] = df["time:timestamp"].dt.floor("h")
+        df["is_accepted"] = df["concept:name"] == "A_Accepted"
+        df["is_denied"] = df["concept:name"] == "A_Denied"
+        df["is_cancelled"] = df["concept:name"].isin(
+            ["A_Cancelled", "O_Cancelled"]
+        )
+        df["is_pending"] = df["concept:name"] == "A_Pending"
+
+        result = (
+            df.groupby("hour")
+            .agg(
+                num_accepted=("is_accepted", "sum"),
+                num_denied=("is_denied", "sum"),
+                num_cancelled=("is_cancelled", "sum"),
+                num_pending=("is_pending", "sum"),
+            )
+            .reset_index()
+        )
+
+        total = result[
+            ["num_accepted", "num_denied", "num_cancelled", "num_pending"]
+        ].sum(axis=1)
+        result["accept_ratio"] = result["num_accepted"] / total.replace(
+            0, np.nan
+        )
+        result["accept_ratio"] = result["accept_ratio"].fillna(0)
+        result = result.rename(columns={"hour": "timestamp"})
+        return _fill_hourly_grid(result[["timestamp", "accept_ratio"]])

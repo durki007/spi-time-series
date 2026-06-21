@@ -293,7 +293,7 @@ def test_r2_is_nan_for_single_sample_prefix():
     assert np.isnan(report.prefix_metrics["m"][1]["r2"])
 
 
-def test_missing_prefix_length_column_raises():
+def test_missing_prefix_length_column_does_not_raise():
     X = pd.DataFrame(
         {"BasicControlFlowFeatures__elapsed_time_hours": [1.0, 2.0]}
     )
@@ -308,10 +308,13 @@ def test_missing_prefix_length_column_raises():
         trace_ids_test=pd.Series(),
     )
     artifact = _make_artifact({"m": ConstantPredictor(15.0)})
-    with pytest.raises(
-        ValueError, match="BasicControlFlowFeatures__prefix_length"
-    ):
-        evaluate(artifact, fs, "regression")
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        report = evaluate(artifact, fs, "regression")
+    assert report is not None
+    assert report.prefix_metrics["m"] != {}
 
 
 def test_all_prefix_lengths_have_all_metrics():
