@@ -30,7 +30,7 @@ search:
   search_sample_size: null
 
 pca_config:
-  active: True
+  active: False
   keep_variability: 0.95
 
 models:
