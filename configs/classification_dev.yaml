@@ -10,11 +10,8 @@ prefix:
   max_length: 10
 
 features:
-  one_hot_encode_categorical: false
   enabled_features:
-    - BasicControlFlowFeatures
-    - OfferFeatures
-    - InteractionFeatures
+    - ActivityCountFeatures
     - WaitingStateFeatures
   exclude_features: []
 
