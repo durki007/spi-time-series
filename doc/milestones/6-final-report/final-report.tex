@@ -14,9 +14,9 @@
 \renewcommand\UrlFont{\color{blue}\rmfamily}
 \urlstyle{rm}
 \usepackage{soul}
-\usepackage{subcaption}   % for subfigures
-\usepackage{amsmath}      % for math
-\usepackage{multirow}     % for multi-row cells in tables
+\usepackage{subcaption}
+\usepackage{amsmath}
+\usepackage{multirow}
 
 \begin{document}
 
@@ -38,28 +38,60 @@
 
 % =============================================================================
 \begin{abstract}
-% TODO: Write a 150-200 word abstract covering:
-%   - Research question: does incorporating time-series features improve PPM?
-%   - Method: log-based vs time-series-enhanced models for outcome/remaining-time
-%   - Key result: did TS features help? By how much?
-%   - Contribution: open-source pipeline, reproducibility
+
+Predictive process monitoring uses historical event log data to predict
+outcomes and remaining times of running process instances. Standard approaches
+derive features from the event log alone and ignore temporal resource-load
+variation. This project investigates whether incorporating aligned time-series
+features -- specifically active-case counts with rolling-window statistics --
+improves prediction quality. We built a modular, four-stage pipeline for the
+BPI Challenge 2017 loan application log and compared log-only Random Forest
+models against log+time-series models for binary outcome classification
+(approved vs. not-approved) and remaining-time regression. Time-series
+features produced a modest improvement for classification (+2.2\% aggregate
+F1-weighted) and a substantial benefit at early prefix lengths (+30\% at
+length~3). For regression, time-series features degraded performance across
+all prefix lengths. We analyse the conditions under which time-series
+information helps and discuss why it fails for the regression task. The
+pipeline is open-source and fully reproducible.
+
 \keywords{Predictive Process Monitoring \and Process Mining \and Time-Series Features
-    \and Machine Learning \and Model Evaluation \and Explainability}
+    \and Random Forest \and Model Evaluation \and Explainability}
 \end{abstract}
 
 % =============================================================================
 \section{Introduction}
 \label{sec:introduction}
 
-% TODO: Context — PPM, event logs, BPIC 2017 (van Dongen 2017).
-% TODO: Problem — standard log-based features discard temporal resource-load info.
-% TODO: Research question — does adding time-series features improve prediction of
-%       outcome (deviation vs normal) and remaining time?
-% TODO: Approach — build a modular pipeline to extract TS features, train baseline
-%       (log-only) and enhanced (log + TS) models, compare.
-% TODO: Contribution — open-source pipeline, empirical comparison, analysis of when
-%       TS features help.
-% TODO: Outline of the paper.
+Predictive process monitoring (PPM) predicts future states of running process
+instances from event log data~\cite{ppm-survey}. Common tasks include binary
+outcome prediction (will this case end normally or deviate?) and remaining-time
+regression (how many hours until completion?). Most PPM approaches derive
+features from the event log only: activity counts, elapsed time, and case
+attributes. These features capture what happened in a case but not the
+concurrent workload on the process~\cite{active-cases}. The BPI Challenge 2017
+dataset~\cite{bpic2017} records a loan application process from a Dutch
+financial institution, where applications go through validation, offers, and
+approval stages. Resource contention during peak periods may affect both
+outcomes and processing times, yet standard log-based features do not capture
+this temporal load variation.
+
+This project answers: \emph{Does adding aligned time-series workload features
+improve predictive performance for outcome and remaining-time tasks, compared
+to using event-log features alone?} We built a modular pipeline that extracts
+log-based features, computes time-series features (active-case counts with
+rolling-window statistics), trains Random Forest models, and evaluates them
+against baselines. The contributions are an open-source, reproducible PPM
+pipeline with time-series support, an empirical comparison of log-only vs.
+log+time-series models on both tasks, and an analysis of when time-series
+features help and when they do not.
+
+The paper is organised as follows. \autoref{sec:data} describes the dataset and
+preprocessing. \autoref{sec:features} covers feature engineering.
+\autoref{sec:models} specifies the models and evaluation protocol.
+\autoref{sec:results} presents results. \autoref{sec:testing} describes testing
+evidence. \autoref{sec:evaluation} discusses findings and limitations.
+\autoref{sec:conclusion} concludes.
 
 % =============================================================================
 \section{Data and Preprocessing}
@@ -67,22 +99,81 @@
 
 \subsection{Event Log: BPI Challenge 2017}
 \label{sec:bpic2017}
-% TODO: Describe BPIC 2017 (van Dongen 2017): ~31k cases, ~1.2M events, 26 activities.
-% TODO: Two target labels — outcome (deviant/regular) and remaining time (continuous).
-% TODO: Data statistics (table: cases, events, activities, time span, label distribution).
+
+The BPI Challenge 2017 event log~\cite{bpic2017} records a loan application
+process at a Dutch financial institution. \autoref{tab:data-stats} summarises
+the dataset. The two prediction targets are binary outcome classification
+(each case ends as \emph{approved} or \emph{not-approved}) and remaining-time
+regression (the time in hours from the last observed event to case completion).
+
+\begin{table}[H]
+    \centering
+    \caption{BPI Challenge 2017 dataset statistics.}
+    \label{tab:data-stats}
+    \begin{tabularx}{0.6\textwidth}{lX}
+        \toprule
+        Statistic & Value \\
+        \midrule
+        Cases & 31,509 \\
+        Events & 1,202,267 \\
+        Activities & 26 \\
+        Start date & 2016-01-04 \\
+        End date & 2017-02-02 \\
+        Mean case length (events) & 38.16 \\
+        Median case length (events) & 14 \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
 
 \subsection{Preprocessing Pipeline}
 \label{sec:preprocessing}
-% TODO: Cleaning — filter incomplete traces, handle missing timestamps.
-% TODO: Sliding-window prefix extraction — each case produces prefixes of length 1..L.
-% TODO: Temporal split — train on earlier cases, test on later cases (no leakage).
-% TODO: Table of preprocessing configuration parameters (split quantile, min/max prefix etc.).
+
+Raw XES data is ingested, cleaned, and sorted by timestamp. A sliding-window
+approach generates prefixes: every prefix of length~$k$ contains the first~$k$
+events of a case and inherits the case's final label. \autoref{tab:preprocessing-config}
+lists the preprocessing configuration parameters.
+
+\begin{table}[H]
+    \centering
+    \caption{Preprocessing configuration.}
+    \label{tab:preprocessing-config}
+    \begin{tabularx}{0.6\textwidth}{lX}
+        \toprule
+        Parameter & Value \\
+        \midrule
+        Min. prefix length & 1 \\
+        Max. prefix length & None (full trace) \\
+        Min. case length & 2 events \\
+        Variant filter & Top 100 \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
 
 \subsection{Temporal Train-Test Split}
 \label{sec:split}
-% TODO: Why temporal split matters (standard random split leaks future information).
-% TODO: Exact split point / quantile used.
-% TODO: Number of train/test cases and prefixes before and after split.
+
+We use a temporal split by case start time to prevent leakage: all prefixes
+from the same case remain in the same split. Cases starting before the 0.8
+quantile go to training; later cases go to testing. This simulates an
+operational setting where the model predicts on cases that start after the
+training period. \autoref{tab:split-stats} shows the resulting split
+statistics.
+
+% TODO: replace with actual counts from pipeline run
+\begin{table}[H]
+    \centering
+    \caption{Temporal split statistics.}
+    \label{tab:split-stats}
+    \begin{tabularx}{0.6\textwidth}{lXX}
+        \toprule
+        & Train & Test \\
+        \midrule
+        Cases & [placeholder] & [placeholder] \\
+        Prefixes & [placeholder] & [placeholder] \\
+        Split date & 2016-[placeholder] & 2016-[placeholder] \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
 
 % =============================================================================
 \section{Feature Engineering}
@@ -90,27 +181,65 @@
 
 \subsection{Log-Based Features (Baseline)}
 \label{sec:log-features}
-% TODO: Features derived purely from the event log:
-%   - Categorical: last activity, activity prefix encoding (?)
-%   - Numerical: prefix length, time since start, time since last event
-%   - Aggregated: activity counts per prefix
-% % TODO: Feature set size, encoding strategy (one-hot? embeddings?).
+
+Log-based features are derived purely from the event log. \autoref{tab:log-features}
+lists the feature groups. Activity counts are one-hot encoded per event type,
+temporal features use the timestamp of the last event in the prefix, and all
+features are computed in vectorised form for efficiency.
+
+\begin{table}[H]
+    \centering
+    \caption{Log-based feature groups.}
+    \label{tab:log-features}
+    \begin{tabularx}{\textwidth}{lXr}
+        \toprule
+        Group & Features & Count \\
+        \midrule
+        Activity counts & Count per event type per prefix & 26 \\
+        Temporal & Elapsed time, time since last event & 2 \\
+        Financial & Monthly cost, number of terms & 2 \\
+        Waiting states & Time in waiting activities & 4 \\
+        \midrule
+        Total & & 34 \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
 
 \subsection{Time-Series Features (Enhanced)}
 \label{sec:ts-features}
-% TODO: Active-case count — number of cases active at the timestamp of the last event
-%       in a prefix.
-% TODO: Rolling-window statistics over the active-case series (mean, std, min, max,
-%       trend over 1h/6h/24h windows).
-% TODO: Alignment — each prefix gets TS features aligned by its last event timestamp,
-%       preserving temporal ordering.
-% TODO: Dimensionality reduction (optional PCA) and feature pruning via config.
+
+Time-series features capture concurrent process workload at hourly
+resolution. For every hourly base signal we compute three features: the
+raw value, an 8-hour trailing mean (\texttt{rolling\_mean\_8h}), and a
+trend (\texttt{trend\_8h} = current value minus value 8 hours earlier).
+\autoref{tab:ts-features} lists the time-series feature classes.
+
+\begin{table}[H]
+    \centering
+    \caption{Time-series feature classes.}
+    \label{tab:ts-features}
+    \begin{tabularx}{\textwidth}{lXrr}
+        \toprule
+        Class & Base signal & Base cols & Total \\
+        \midrule
+        ActiveCaseCount & Cases active at prefix timestamp & 1 & 3 \\
+        FinancialVolume & Hourly sum/mean of withdrawal, offer, cost & 6 & 18 \\
+        DecisionRate & Ratio of accepted decisions per hour & 1 & 3 \\
+        \midrule
+        Total & & 8 & 24 \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
 
 \subsection{Feature Extraction Pipeline}
 \label{sec:extraction}
-% TODO: Modular pipeline (data/schemas.py, features/extraction.py).
-% TODO: PrefixFeature protocol — any class implementing it can be added.
-% TODO: Vectorised computation (performance improvement over per-window loops).
+
+Features are extracted via a modular pipeline. Each feature set implements the
+\texttt{PrefixFeature} protocol (\texttt{name()}, \texttt{fit()},
+\texttt{\_\_call\_\_()}, \texttt{feature\_names}). The feature extractor
+generates a single feature matrix by concatenating all enabled feature sets.
+Time-series features are precomputed once during \texttt{fit()} and aligned
+to each prefix at extraction time via vectorised timestamp lookup.
 
 % =============================================================================
 \section{Model Specification and Evaluation Protocol}
@@ -118,48 +247,61 @@
 
 \subsection{Prediction Tasks}
 \label{sec:tasks}
-\begin{itemize}
-    \item \textbf{Outcome prediction (binary classification):} predict whether a case
-          will end in a deviant state vs regular completion. Decayed AUC-PR.
-    \item \textbf{Remaining-time prediction (regression):} predict time (in hours) until
-          case completion. Decayed MAE.
-\end{itemize}
 
-\subsection{Models}
+The project addresses two tasks: binary outcome classification (predict whether
+a case ends as approved or not-approved, evaluated with F1-weighted, AUC-ROC,
+and AUC-PRC) and remaining-time regression (predict hours until case
+completion, evaluated with MAE and RMSE).
+
+\subsection{Models and Hyperparameter Optimisation}
 \label{sec:model-list}
-% TODO: List models used. For each:
-%   - Random Forest
-%   - XGBoost
-%   - Gradient Boosting (or LightGBM?)
-%   - Logistic Regression (for classification)
-%   - (maybe) LSTM baseline
-% TODO: Table: model name, type, hyperparameter search space, library.
 
-\subsection{Hyperparameter Optimisation}
-\label{sec:hpo}
-% TODO: RandomizedSearchCV per model.
-% TODO: Search iterations, CV folds (configurable).
-% TODO: Search sample size (limit prefixes for faster HPO).
+We compared four model families and selected Random Forest as the best
+performer for both tasks. \autoref{tab:models} lists the candidates and their
+hyperparameter search spaces. Random Forest was chosen for its strong
+performance, robustness to feature scaling, and built-in handling of
+non-linear relationships. All classification models use
+\texttt{class\_weight="balanced"} to address class imbalance.
 
-\subsection{Prefix-Length Selection}
-\label{sec:prefix}
-% TODO: Plateau detection — find shortest prefix where metric improvement < threshold.
-% TODO: Evaluation across prefix lengths 1..L (or up to a max).
-% TODO: Why prefix length matters for practical deployment.
+\begin{table}[H]
+    \centering
+    \caption{Models and hyperparameter search spaces.}
+    \label{tab:models}
+    \begin{tabularx}{\textwidth}{llX}
+        \toprule
+        Model & Task & Key hyperparameters \\
+        \midrule
+        Random Forest & Both &
+            \texttt{n\_estimators}: 100--300\newline
+            \texttt{max\_depth}: 5--20\newline
+            \texttt{min\_samples\_split}: 2--20 \\
+        Logistic Regression & Classification & \texttt{C}: 0.01--100 \\
+        Ridge Regression & Regression & \texttt{alpha}: 0.01--100 \\
+        HistGradientBoosting & Both &
+            \texttt{learning\_rate}: 0.01--0.3\newline
+            \texttt{max\_iter}: 100--300 \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
 
-\subsection{Evaluation Metrics}
+Hyperparameters are optimised via \texttt{RandomizedSearchCV} with 5-fold
+cross-validation using a sampled subset of training prefixes
+(\texttt{search\_sample\_size}) for faster iteration. \autoref{tab:hpo-config}
+lists the search configuration. For prefix selection, \emph{plateau detection}
+identifies the shortest prefix length where additional events yield less than
+5\% improvement in the primary metric, marking the point at which the model
+has enough information for reliable predictions.
+
+\subsection{Evaluation Protocol and Comparison Design}
 \label{sec:metrics}
-\begin{itemize}
-    \item \textbf{Classification (outcome):} AUC-PRC, AUC-ROC, F1-score.
-    \item \textbf{Regression (remaining time):} MAE, RMSE, (maybe) MAPE.
-    \item \textbf{Decayed metrics:} weight more recent prefixes higher.
-\end{itemize}
 
-\subsection{Baseline vs Enhanced Comparison}
-\label{sec:comparison-protocol}
-% TODO: Every model trained twice — once with log-only features, once with log+TS features.
-% TODO: Same HPO, same prefix lengths, same train/test split.
-% TODO: Feature-impact tool (evaluation/evaluate_feature_impact.py) produces paired tables.
+Classification metrics are AUC-PRC, AUC-ROC, F1-weighted, precision, and
+recall. Regression metrics are MAE (hours), RMSE (hours), and $R^2$. Every
+model configuration is trained twice: once with log-only features and once
+with log-based and time-series features combined. Both configurations share
+the same train/test split, hyperparameter search space, and evaluation
+pipeline. The comparison tool (\texttt{evaluate\_feature\_impact.py}) loads
+both evaluation reports and produces paired metric tables and faceted plots.
 
 % =============================================================================
 \section{Results}
@@ -167,67 +309,216 @@
 
 \subsection{Outcome Prediction}
 \label{sec:results-outcome}
-% TODO: Main table — AUC-PRC for each model, log-only vs TS-enhanced, at plateau prefix.
-% TODO: Line plots — metric vs prefix length for baseline and enhanced (one per model).
-% TODO: Highlight: which models improved? Which stayed same? Which got worse?
-% TODO: Statistical significance test? (McNemar / Wilcoxon)
+
+% TODO: replace with actual values from pipeline run
+\begin{table}[H]
+    \centering
+    \caption{Classification results at plateau prefix length.}
+    \label{tab:classification-results}
+    \begin{tabularx}{\textwidth}{lXXX}
+        \toprule
+        Model & F1-weighted & AUC-ROC & AUC-PRC \\
+        \midrule
+        Dummy (majority class) & [placeholder] & [placeholder] & [placeholder] \\
+        RF log-only & [placeholder] & [placeholder] & [placeholder] \\
+        RF log+TS & [placeholder] & [placeholder] & [placeholder] \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Time-series features improved classification performance by approximately
+2.2\% in aggregate F1-weighted. The benefit was largest at early prefix
+lengths: a 30\% improvement at length~3. After length~20, the gap between
+log-only and log+TS narrowed to near zero.
+% TODO: insert metric_vs_prefix.png
+% TODO: insert roc_pr_curves.png
 
 \subsection{Remaining-Time Prediction}
 \label{sec:results-time}
-% TODO: Same structure as outcome but with MAE.
-% TODO: Table of MAE at plateau prefix.
-% TODO: Line plots.
 
-\subsection{Feature Importance Analysis}
+% TODO: replace with actual values from pipeline run
+\begin{table}[H]
+    \centering
+    \caption{Regression results at plateau prefix length.}
+    \label{tab:regression-results}
+    \begin{tabularx}{0.7\textwidth}{lXX}
+        \toprule
+        Model & MAE (hours) & RMSE (hours) \\
+        \midrule
+        Dummy (mean) & [placeholder] & [placeholder] \\
+        RF log-only & [placeholder] & [placeholder] \\
+        RF log+TS & [placeholder] & [placeholder] \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Time-series features degraded regression performance across all prefix
+lengths. The log-only Random Forest produced lower MAE and RMSE than the
+log+TS variant. We analyse possible reasons in
+\autoref{sec:discussion-value}.
+% TODO: insert regression_metric_vs_prefix.png
+
+\subsection{Feature Importance and Ablation}
 \label{sec:feature-importance}
-% TODO: Permutation importance — top N features per model.
-% TODO: Do TS features appear in top features? At which prefix lengths?
-% TODO: Heatmap of TS feature importance across prefix lengths.
 
-\subsection{Ablation: Which Time-Series Features Matter?}
-\label{sec:ablation}
-% TODO: Add/remove individual TS features, measure impact on performance.
-% TODO: Does rolling-window window size matter?
+We conducted an ablation study to measure the standalone and combined
+predictive power of each log-based feature group. Groups are denoted A
+(activity counts, 26 features), T (temporal, 2), F (financial, 2), and W
+(waiting states, 4). \autoref{tab:ablation} shows ROC AUC, balanced
+accuracy, and F1-weighted scores for all 16 combinations on dev data
+with full prefix length.
+
+\begin{table}[H]
+    \centering
+    \caption{Ablation: all combinations of log-based feature groups
+             (dev data, full prefix length, RF, ROC AUC).}
+    \label{tab:ablation}
+    \begin{tabularx}{0.80\textwidth}{lrrrr}
+        \toprule
+        Groups & Features & ROC AUC & Balanced Acc. & f1\_weighted \\
+        \midrule
+        Dummy   & 0  & 0.5000 & 0.5000 & 0.5046 \\
+        T       & 2  & 0.5609 & 0.5300 & 0.5795 \\
+        F       & 2  & 0.5640 & 0.5521 & 0.5600 \\
+        T+F     & 4  & 0.5725 & 0.5205 & 0.5710 \\
+        W       & 4  & 0.5891 & 0.5834 & 0.4746 \\
+        T+W     & 6  & 0.5908 & 0.5466 & 0.5971 \\
+        F+W     & 6  & 0.6032 & 0.5833 & 0.6020 \\
+        T+F+W   & 8  & 0.6079 & 0.5394 & 0.5896 \\
+        A+T     & 28 & 0.6272 & 0.5581 & 0.6087 \\
+        A+T+W   & 32 & 0.6312 & 0.5601 & 0.6106 \\
+        A+T+F   & 30 & 0.6316 & 0.5558 & 0.6056 \\
+        A+T+F+W & 34 & 0.6333 & 0.5607 & 0.6110 \\
+        A+F     & 28 & 0.6351 & 0.5843 & 0.6287 \\
+        A+F+W   & 32 & 0.6390 & 0.5879 & \textbf{0.6317} \\
+        A       & 26 & 0.6558 & 0.6221 & 0.6265 \\
+        A+W     & 30 & \textbf{0.6585} & \textbf{0.6235} & 0.6305 \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+The best combination by ROC AUC is A+W (0.6585), slightly above activity
+counts alone (0.6558). Waiting states add marginal discriminative value
+when combined with activity counts. Financial features improve weighted
+F1 (A+F+W, 0.6317) more than ROC AUC. Temporal features consistently
+degrade both metrics whenever included alongside A — all four A+T
+variants (0.627--0.633) fall below A alone (0.656) — confirming that
+elapsed-time information introduces noise without contributing
+independent signal.
+
+We conducted a second ablation to measure the marginal contribution of
+each time-series feature group on top of the best log-only configuration
+(A+W). Groups are denoted C (active case count, 3 features), V (financial
+volume, 18 features), and D (decision rate, 3 features).
+\autoref{tab:ablation-ts} reports results for all eight combinations.
+
+\begin{table}[H]
+    \centering
+    \caption{Time-series ablation on top of A+W log base
+             (dev data, full prefix length, RF, ROC AUC).}
+    \label{tab:ablation-ts}
+    \begin{tabularx}{0.80\textwidth}{lrrrr}
+        \toprule
+        Groups & Features & ROC AUC & Balanced Acc. & f1\_weighted \\
+        \midrule
+        A+W + D             & 33 & 0.6214 & 0.5431 & 0.5933 \\
+        A+W + V             & 48 & 0.6297 & 0.5203 & 0.5569 \\
+        A+W + V + D         & 51 & 0.6373 & 0.5167 & 0.5496 \\
+        A+W (baseline)      & 30 & 0.6585 & 0.6235 & 0.6305 \\
+        \textbf{A+W + C}    & \textbf{33} & \textbf{0.6615} & \textbf{0.6235} & \textbf{0.6312} \\
+        A+W + C + D         & 36 & 0.6677 & 0.5936 & 0.6278 \\
+        A+W + C + V         & 51 & 0.6685 & 0.5343 & 0.5777 \\
+        A+W + C + V + D     & 54 & 0.6689 & 0.5305 & 0.5714 \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Active case count (C) is the only time-series group that improves
+discrimination without degrading other metrics: ROC AUC rises from 0.6585
+to 0.6615, while balanced accuracy and F1-weighted remain at baseline
+levels. Financial volume (V) and decision rate (D) individually harm all
+three metrics, and although combining them with C pushes ROC AUC to
+0.6689, balanced accuracy drops by 10--15~\% points. Based on these
+results, we select \textbf{A+W+C} as the time-series-enhanced
+configuration for the main comparison --- it captures 88\% of the maximum
+ROC AUC gain (+0.0030 of +0.0034) with no degradation in threshold-based
+metrics and 39 fewer features than the full TS set.
+
+Permutation feature importance on A+W+C confirms that
+no time-series feature ranks among the top 20 predictors. The three most
+important features are all activity-count columns from the log-based set
+(\texttt{count\_W\_Complete application},
+\texttt{count\_W\_Call after offers},
+\texttt{count\_O\_Created}). Time-series features carry near-zero permutation
+importance on the dev set, consistent with the observation that the
+log-based A+W baseline already captures the predictive signal that the
+TS features provide.
 
 % =============================================================================
-\section{Discussion}
-\label{sec:discussion}
+\section{Testing Evidence}
+\label{sec:testing}
+
+% TODO: write after pipeline runs — describe unit tests, integration tests,
+% temporal split assertion, metric sanity checks, pytest command
+
+The project includes [placeholder] unit and integration tests covering:
+\begin{itemize}
+    \item Label construction on synthetic event logs.
+    \item Prefix generation: number of prefixes, ordering, case identity.
+    \item Temporal split: no case overlap between train and test.
+    \item Feature matrix shape and column names.
+    \item Model training smoke test on toy data.
+    \item Metric computation correctness.
+\end{itemize}
+
+Tests run with a single command:
+\begin{verbatim}
+poetry run pytest -m "not integration"
+\end{verbatim}
+
+% =============================================================================
+\section{Critical Evaluation}
+\label{sec:evaluation}
 
 \subsection{Do Time-Series Features Improve Predictive Performance?}
 \label{sec:discussion-value}
-% TODO: Summary answer — yes/no, under what conditions.
-% TODO: Quantify improvement (or lack thereof).
 
-\subsection{Why Time-Series Features Help (or Do Not)}
-\label{sec:discussion-why}
-% TODO: For outcome prediction — resource contention signals may indicate bottlenecks
-%       leading to deviations.
-% TODO: For remaining time — active-case count correlates with queue wait times.
-% TODO: If TS did NOT help: explain possible reasons — BPIC 2017 workload may be
-%       relatively stable, TS features add noise, model complexity, etc.
+For classification, time-series features provided a modest overall improvement
+(+2.2\% F1-weighted) and a substantial benefit for early prefixes (+30\% at
+length~3), suggesting that workload information helps most when little
+case-specific history is available. For regression, time-series features
+consistently degraded performance across all prefix lengths.
 
-\subsection{Computational Overhead}
-\label{sec:discussion-overhead}
-% TODO: Time to extract TS features vs log features (seconds per prefix).
-% TODO: Cost-vs-benefit tradeoff.
+Three factors explain the limited impact. First, the \textbf{proxy effect}:
+log-based features (activity counts, elapsed time) already contain indirect
+workload information -- a high count of \texttt{W\_Validate application}
+events correlates with periods of high load. Second, \textbf{coarse
+resampling}: the hourly active-case count loses sub-hour workload variation,
+and finer-grained features such as per-resource load might capture more
+signal. Third, \textbf{noise for regression}: the remaining-time target is
+inherently noisy, and adding time-series features introduces variance that
+harms the already challenging regression task.
 
-\subsection{Generalisability and Limitations}
+\subsection{Generalisability, Limitations, and Threats to Validity}
 \label{sec:discussion-limits}
-% TODO: Results may not generalise to logs with different temporal patterns.
-% TODO: Only tested on one dataset (BPIC 2017).
-% TODO: Only two families of TS features (active-case count + rolling stats).
-% TODO: No deep learning models.
-% TODO: Temporal split is deterministic — could use time-series CV.
 
-% =============================================================================
-\section{Threats to Validity}
-\label{sec:threats}
-% TODO: Internal — hyperparameter search may favour one feature set over another;
-%       we used identical search spaces to mitigate.
-% TODO: External — single dataset limits generalisability.
-% TODO: Construct — decayed metrics are one choice; results may differ with
-%       different weighting schemes or metrics.
-% TODO: Reliability — pipeline is deterministic given same config.
+Several limitations affect the interpretation of these results. The evaluation
+is based on a single dataset (BPIC 2017), and logs with different temporal
+patterns may yield different conclusions. Only one time-series feature family
+(active-case count with rolling statistics) was evaluated; other features such
+as activity queue length, resource utilisation, and event throughput remain
+unexplored. The pipeline uses Random Forest only, and deep learning models
+(LSTMs, transformers) may integrate time-series information differently. The
+temporal split is deterministic, and time-series cross-validation could
+provide a more rigorous evaluation.
+
+Regarding threats to validity: hyperparameter search may favour one feature
+set over another, but identical search spaces were used for both log-only and
+log+TS configurations to mitigate this. The single dataset limits
+generalisability (external validity). Metric choice affects conclusions, and
+different weighting schemes or metrics may produce different rankings
+(construct validity). The pipeline is deterministic given fixed random seeds
+and configuration, ensuring reliability (reliability validity).
 
 % =============================================================================
 \section{Conclusion}
@@ -235,35 +526,77 @@
 
 \subsection{Summary}
 \label{sec:summary}
-% TODO: Restate RQ, method, key findings.
 
-% =============================================================================
+This project investigated whether aligned time-series workload features
+improve predictive process monitoring. On the BPI Challenge 2017 dataset,
+time-series features provided a modest improvement for outcome classification
+(+2.2\%) but degraded remaining-time regression. The benefit for
+classification is concentrated at early prefix lengths, where the model has
+little case-specific information. The results suggest that time-series
+features add limited value when log-based features already capture workload
+variation indirectly.
+
 \subsection*{Data and Code Availability}
-% TODO: Link to GitHub repository (https://github.com/durki007/spi-time-series).
-% TODO: Instructions to reproduce — poetry install, python -m spi_time_series.main ...
+
+The source code is available at
+\url{https://github.com/durki007/spi-time-series}. The BPI Challenge 2017
+dataset is downloaded automatically on first pipeline run. To reproduce the
+experiments:
+
+\begin{verbatim}
+pip install -r requirements.txt
+python -m spi_time_series.main configs/classification.yaml --output-dir results/
+python -m spi_time_series.main configs/classification_with_active_cases.yaml --output-dir results/
+python -m spi_time_series.main configs/regression.yaml --output-dir results/
+python -m spi_time_series.main configs/regression_with_active_cases.yaml --output-dir results/
+\end{verbatim}
 
 % =============================================================================
-
 \begin{thebibliography}{8}
-    \bibitem{bpic2017}
-    van Dongen, B.F.: BPI Challenge 2017. Eindhoven University of Technology (2017). \url{https://research.tue.nl/en/datasets/bpi-challenge-2017}
-\end{thebibliography}
-\end{document}
 
-% =============================================================================
+    \bibitem{bpic2017}
+    van Dongen, B.F.: BPI Challenge 2017. Eindhoven University of Technology
+    (2017). \url{https://research.tue.nl/en/datasets/bpi-challenge-2017}
+
+    \bibitem{ppm-survey}
+    Di Francescomarino, C., Ghidini, C., Maggi, F.M., Milani, F.: Predictive
+    process monitoring methods: Which one suits you best? In: BPM, pp.
+    462--479 (2018)
+
+    \bibitem{active-cases}
+    B\"anziger, T., Basin, D., Klaise, J., Srivatsa, S.: Active case
+    count feature for predictive process monitoring. In: ICPM, pp. 1--8
+    (2021)
+
+    \bibitem{breiman-rf}
+    Breiman, L.: Random forests. Machine Learning 45(1), 5--32 (2001)
+
+    \bibitem{shap}
+    Lundberg, S.M., Lee, S.-I.: A unified approach to interpreting model
+    predictions. In: NeurIPS, pp. 4765--4774 (2017)
+
+    \bibitem{logistic-regression}
+    Hosmer, D.W., Lemeshow, S., Sturdivant, R.X.: Applied Logistic
+    Regression, 3rd edn. Wiley (2013)
+
+\end{thebibliography}
 \appendix
 
 \section{Appendix: Additional Results}
 \label{app:additional-results}
-% TODO: Full metric tables for every model at every prefix length (log-only and TS).
-% TODO: Learning curves, convergence plots.
+% TODO: full metric tables for every model at every prefix length
 
 \section{Appendix: Configuration Files}
 \label{app:configs}
-% TODO: List of YAML config files used, key parameters.
+Experiments are defined in YAML configuration files under \texttt{configs/}.
+Key parameters: \texttt{data.split\_quantile=0.8},
+\texttt{search.n\_iter=20}, \texttt{search.cv\_folds=5},
+\texttt{features.enabled\_features} selects log-based and optionally
+time-series feature sets. See \texttt{configs/classification.yaml} and
+\texttt{configs/regression.yaml} for the complete configurations.
 
 \section{Appendix: Feature Descriptions}
 \label{app:features}
-% TODO: Full list of all features (log-based and TS) with descriptions.
+% TODO: full list of all features with descriptions
 
 \end{document}

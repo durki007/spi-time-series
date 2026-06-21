@@ -440,3 +440,89 @@ class WaitingStateFeatures:
         out[3] = float(last_activity in waiting_for_bank_states)
 
         return out
+
+
+class ActivityCountFeatures:
+    def __init__(self):
+        self.feature_names = [f"count_{event}" for event in EVENT_NAMES]
+
+    def name(self):
+        return "ActivityCountFeatures"
+
+    def fit(self, *args, **kwargs):
+        pass
+
+    def __call__(self, prefix, col_idx_mapping):
+        activity_idx = col_idx_mapping["concept:name"]
+        activities = prefix[:, activity_idx]
+        counts = Counter(activities)
+        out = np.zeros(len(self.feature_names), dtype=np.float32)
+        for i, event in enumerate(EVENT_NAMES):
+            out[i] = counts.get(event, 0)
+        return out
+
+
+class TemporalFeatures:
+    def __init__(self):
+        self.feature_names = [
+            "elapsed_time_hours",
+            "time_since_last_event_hours",
+        ]
+
+    def name(self):
+        return "TemporalFeatures"
+
+    def fit(self, *args, **kwargs):
+        pass
+
+    def __call__(self, prefix, col_idx_mapping):
+        timestamp_idx = col_idx_mapping["time:timestamp"]
+        prefix_len = prefix.shape[0]
+        out = np.zeros(len(self.feature_names), dtype=np.float32)
+        if prefix_len > 1:
+            out[0] = _hours(prefix[-1][timestamp_idx], prefix[0][timestamp_idx])
+            out[1] = _hours(
+                prefix[-1][timestamp_idx], prefix[-2][timestamp_idx]
+            )
+        return out
+
+
+class FinancialFeatures:
+    def __init__(
+        self,
+        monthly_cost_column="MonthlyCost",
+        num_terms_column="NumberOfTerms",
+    ):
+        self.monthly_cost_column = monthly_cost_column
+        self.num_terms_column = num_terms_column
+        self.feature_names = ["monthly_cost", "num_terms"]
+
+    def name(self):
+        return "FinancialFeatures"
+
+    def fit(self, *args, **kwargs):
+        pass
+
+    def __call__(self, prefix, col_idx_mapping):
+        monthly_cost_idx = col_idx_mapping.get(self.monthly_cost_column)
+        terms_idx = col_idx_mapping.get(self.num_terms_column)
+
+        def last_valid(idx):
+            if idx is None:
+                return 0.0
+            values = prefix[:, idx]
+            for value in reversed(values):
+                if value not in (None, "", np.nan):
+                    try:
+                        v = float(value)
+                        if np.isnan(value):
+                            continue
+                        return v
+                    except Exception:
+                        pass
+            return 0.0
+
+        out = np.zeros(len(self.feature_names), dtype=np.float32)
+        out[0] = last_valid(monthly_cost_idx)
+        out[1] = last_valid(terms_idx)
+        return out
