@@ -1,5 +1,4 @@
 task: regression
-checkpoint_dir: ../data/checkpoints
 
 data:
   top_k_variants: null
@@ -13,10 +12,14 @@ prefix:
 features:
   one_hot_encode_categorical: false
   enabled_features:
-    - BasicControlFlowFeatures
+    - TemporalFeatures
+    - ActivityCountFeatures
     - OfferFeatures
     - InteractionFeatures
     - WaitingStateFeatures
+    - FinancialFeatures
+    - FinancialVolumeFeature
+    - DecisionRateFeature
     - ActiveCaseCountFeature
   exclude_features: []
 

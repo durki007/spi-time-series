@@ -13,10 +13,14 @@ prefix:
 features:
   one_hot_encode_categorical: false
   enabled_features:
-    - BasicControlFlowFeatures
+    - TemporalFeatures
+    - ActivityCountFeatures
     - OfferFeatures
     - InteractionFeatures
     - WaitingStateFeatures
+    - FinancialFeatures
+    - FinancialVolumeFeature
+    - DecisionRateFeature
   exclude_features: []
 
 search:
