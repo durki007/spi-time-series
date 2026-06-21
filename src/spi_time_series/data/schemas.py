@@ -48,6 +48,8 @@ class FeatureSet:
     trace_ids_train: pd.Series
     trace_ids_test: pd.Series
     feature_names: list[str]
+    prefix_lengths_train: pd.Series
+    prefix_lengths_test: pd.Series
 
 
 @dataclass(frozen=True)

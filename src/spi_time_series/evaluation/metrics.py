@@ -30,8 +30,6 @@ from spi_time_series.data.types import Reporter
 
 logger = logging.getLogger(__name__)
 
-_PREFIX_LENGTH_COL = "BasicControlFlowFeatures__prefix_length"
-
 _REGRESSION_METRICS = frozenset({"mae", "rmse", "r2", "median_ae"})
 _CLASSIFICATION_METRICS = frozenset(
     {
@@ -124,20 +122,15 @@ def evaluate(
     X_test = features.X_test
     y_test = features.y_test
 
-    prefix_cols = [c for c in X_test.columns if c.endswith("__prefix_length")]
-    if prefix_cols:
-        prefix_col = prefix_cols[0]
-    else:
-        logger.warning(
-            "No __prefix_length column found in X_test — "
-            "evaluating on full test set without per-prefix breakdown."
-        )
-        prefix_col = None
-
-    if prefix_col is not None:
-        groups: dict = X_test.groupby(prefix_col).groups
+    pls = features.prefix_lengths_test
+    if pls is not None and len(pls):
+        groups: dict = pls.groupby(pls).groups
         prefix_lengths: list[int] = sorted(int(pl) for pl in groups)
     else:
+        logger.warning(
+            "No prefix_lengths_test in FeatureSet — "
+            "evaluating on full test set without per-prefix breakdown."
+        )
         groups = {0: X_test.index}
         prefix_lengths = [0]
     model_names: list[str] = list(artifact.models)

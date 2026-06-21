@@ -13,7 +13,6 @@ from spi_time_series.data.schemas import (
     FeatureSet,
     ModelArtifact,
 )
-from spi_time_series.evaluation.metrics import _PREFIX_LENGTH_COL
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +40,7 @@ def evaluate_feature_drift(
     """Compare feature distributions between train and test splits."""
     X_train = features.X_train
     X_test = features.X_test
-    feature_cols = [c for c in X_test.columns if c != _PREFIX_LENGTH_COL]
+    feature_cols = list(X_test.columns)
 
     drift_stats: dict[str, dict[str, Any]] = {}
     for col in feature_cols:
@@ -64,11 +63,14 @@ def evaluate_feature_drift(
             "drift_detected": bool(ks_pvalue < 0.05),
         }
 
+    pl_train = features.prefix_lengths_train.rename("prefix_length")
+    pl_test = features.prefix_lengths_test.rename("prefix_length")
+
     train_prefix_means = (
-        X_train.groupby(_PREFIX_LENGTH_COL)[feature_cols].mean().reset_index()
+        X_train.groupby(pl_train)[feature_cols].mean().reset_index()
     )
     test_prefix_means = (
-        X_test.groupby(_PREFIX_LENGTH_COL)[feature_cols].mean().reset_index()
+        X_test.groupby(pl_test)[feature_cols].mean().reset_index()
     )
 
     prefix_means_records: list[dict[str, Any]] = []
@@ -77,7 +79,7 @@ def evaluate_feature_drift(
         (test_prefix_means, "test"),
     ]:
         for _, row in df.iterrows():
-            pl = int(row[_PREFIX_LENGTH_COL])
+            pl = int(row["prefix_length"])
             for col in feature_cols:
                 prefix_means_records.append(
                     {
@@ -88,9 +90,7 @@ def evaluate_feature_drift(
                     }
                 )
 
-    prefix_lengths = sorted(
-        int(pl) for pl in X_test.groupby(_PREFIX_LENGTH_COL).groups
-    )
+    prefix_lengths = sorted(features.prefix_lengths_test.unique().astype(int))
 
     return EvaluationReport(
         feature_drift={
