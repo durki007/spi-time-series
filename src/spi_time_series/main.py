@@ -43,6 +43,7 @@ from spi_time_series.evaluation.metrics import (
     _make_model_comparison_reporter,
     evaluate,
 )
+from spi_time_series.evaluation.plots import report_metric_plots
 from spi_time_series.evaluation.shap_explainability import report_shap
 from spi_time_series.features.extraction import extract_features_builder
 from spi_time_series.features.log_based_features import (
@@ -434,6 +435,7 @@ def main(argv: list[str] | None = None) -> None:
         .with_feature_extractor(_build_default_feature_extractor(config))
         .add_evaluator(evaluate)
         .add_reporter(_save_report)
+        .add_reporter(report_metric_plots)
         .add_evaluator(evaluate_feature_drift)
         .add_reporter(report_feature_drift)
         .add_evaluator(evaluate_feature_importance)
