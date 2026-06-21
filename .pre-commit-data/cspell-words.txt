@@ -19,3 +19,5 @@ axhline
 axvline
 lims
 prec
+pvalue
+samp

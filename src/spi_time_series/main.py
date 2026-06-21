@@ -27,6 +27,18 @@ from spi_time_series.data.schemas import (
     PreprocessedData,
 )
 from spi_time_series.data.types import FeatureExtractor
+from spi_time_series.evaluation.feature_drift import (
+    evaluate_feature_drift,
+    report_feature_drift,
+)
+from spi_time_series.evaluation.feature_importance import (
+    evaluate_feature_importance,
+    evaluate_feature_importance_per_prefix,
+    report_feature_importance,
+)
+from spi_time_series.evaluation.feature_importance import (
+    report_prefix_importance_visualizations as _save_prefix_importance_visualizations,
+)
 from spi_time_series.evaluation.metrics import (
     _make_model_comparison_reporter,
     evaluate,
@@ -438,6 +450,12 @@ def main(argv: list[str] | None = None) -> None:
         .with_feature_extractor(_build_default_feature_extractor(config))
         .add_evaluator(evaluate)
         .add_reporter(_save_report)
+        .add_evaluator(evaluate_feature_drift)
+        .add_reporter(report_feature_drift)
+        .add_evaluator(evaluate_feature_importance)
+        .add_reporter(report_feature_importance)
+        .add_evaluator(evaluate_feature_importance_per_prefix)
+        .add_reporter(_save_prefix_importance_visualizations)
         .add_reporter(_make_model_comparison_reporter(config.task))
         .add_reporter(_save_predictions)
         .build()

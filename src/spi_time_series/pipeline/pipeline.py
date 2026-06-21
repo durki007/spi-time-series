@@ -64,6 +64,7 @@ def _merge_evaluations(reports: list[EvaluationReport]) -> EvaluationReport:
             merged.model_metrics.setdefault(model, {})
             for metric, val in by_metric.items():
                 merged.model_metrics[model][metric] = val
+        merged.feature_drift.update(report.feature_drift)
         for name in report.model_names:
             if name not in merged.model_names:
                 merged.model_names.append(name)
