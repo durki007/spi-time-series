@@ -27,6 +27,10 @@ from spi_time_series.data.schemas import (
     PreprocessedData,
 )
 from spi_time_series.data.types import FeatureExtractor
+from spi_time_series.evaluation.feature_drift import (
+    evaluate_feature_drift,
+    report_feature_drift,
+)
 from spi_time_series.evaluation.feature_importance import (
     evaluate_feature_importance,
     evaluate_feature_importance_per_prefix,
@@ -430,6 +434,8 @@ def main(argv: list[str] | None = None) -> None:
         .with_feature_extractor(_build_default_feature_extractor(config))
         .add_evaluator(evaluate)
         .add_reporter(_save_report)
+        .add_evaluator(evaluate_feature_drift)
+        .add_reporter(report_feature_drift)
         .add_evaluator(evaluate_feature_importance)
         .add_reporter(report_feature_importance)
         .add_evaluator(evaluate_feature_importance_per_prefix)
