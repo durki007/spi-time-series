@@ -35,6 +35,7 @@ from sklearn.metrics import (
     roc_curve,
 )
 
+from spi_time_series.data.schemas import EvaluationReport, ModelArtifact
 from spi_time_series.evaluation.metrics import (
     _PREFIX_LENGTH_COL,
     detect_task,
@@ -306,6 +307,62 @@ def _plot_roc_pr_curves(
     fig.savefig(output_path, dpi=dpi)
     plt.close(fig)
     logger.info("Saved ROC/PR curves plot: %s", output_path)
+
+
+# ---------------------------------------------------------------------------
+# Reporter
+# ---------------------------------------------------------------------------
+
+
+def report_metric_plots(
+    artifact: ModelArtifact,
+    report: EvaluationReport,
+    output_dir: Path | None,
+    *,
+    dpi: int = 150,
+) -> None:
+    """Reporter: save one line-plot PNG per metric vs prefix length."""
+    if output_dir is None:
+        logger.warning("No output directory; skipping metric line plots.")
+        return
+    if not report.prefix_metrics:
+        logger.warning(
+            "No prefix metrics in report; skipping metric line plots."
+        )
+        return
+
+    rows = [
+        {"model": model, "prefix_length": pl, **metrics}
+        for model, by_prefix in report.prefix_metrics.items()
+        for pl, metrics in by_prefix.items()
+    ]
+    df = pd.DataFrame(rows).sort_values(["model", "prefix_length"])
+    metric_cols = [c for c in df.columns if c not in ("model", "prefix_length")]
+
+    plots_dir = output_dir / "reports"
+    plots_dir.mkdir(parents=True, exist_ok=True)
+
+    for metric in metric_cols:
+        fig, ax = plt.subplots(figsize=(10, 6))
+        sns.lineplot(
+            data=df,
+            x="prefix_length",
+            y=metric,
+            hue="model",
+            style="model",
+            markers=True,
+            linewidth=2,
+            ax=ax,
+        )
+        ax.set_title(f"{metric.upper()} vs Prefix Length")
+        ax.set_xlabel("Prefix Length")
+        ax.set_ylabel(metric.upper())
+        ax.legend(title="Model", loc="best")
+        fig.tight_layout()
+        out = plots_dir / f"{metric}_vs_prefix.png"
+        fig.savefig(out, dpi=dpi)
+        plt.close(fig)
+        logger.info("Saved %s plot: %s", metric, out)
 
 
 # ---------------------------------------------------------------------------
