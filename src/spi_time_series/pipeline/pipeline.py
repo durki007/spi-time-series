@@ -65,6 +65,8 @@ def _merge_evaluations(reports: list[EvaluationReport]) -> EvaluationReport:
             for metric, val in by_metric.items():
                 merged.model_metrics[model][metric] = val
         merged.feature_drift.update(report.feature_drift)
+        for model, splits in report.train_test_comparison.items():
+            merged.train_test_comparison[model] = splits
         for name in report.model_names:
             if name not in merged.model_names:
                 merged.model_names.append(name)

@@ -21,3 +21,5 @@ lims
 prec
 pvalue
 samp
+xticks
+xticklabels

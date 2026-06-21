@@ -93,6 +93,10 @@ class EvaluationReport:
     )
     model_metrics: dict[str, dict[str, Any]] = field(default_factory=dict)
     feature_drift: dict[str, Any] = field(default_factory=dict)
+    # {model_name: {"train": {metric: val}, "test": {metric: val}}}
+    train_test_comparison: dict[str, dict[str, dict[str, float]]] = field(
+        default_factory=dict
+    )
     model_names: list[str] = field(default_factory=list)
     prefix_lengths: list[int] = field(default_factory=list)
     prefix_counts: dict[int, int] = field(default_factory=dict)
