@@ -57,8 +57,6 @@ from spi_time_series.features.log_based_features import (
     ActivityCountFeatures,
     BasicControlFlowFeatures,
     FinancialFeatures,
-    InteractionFeatures,
-    OfferFeatures,
     TemporalFeatures,
     WaitingStateFeatures,
 )
@@ -234,10 +232,6 @@ def _build_default_feature_extractor(config: RunConfig) -> FeatureExtractor:
                     one_hot_encode_categorical=config.features.one_hot_encode_categorical
                 )
             )
-        elif name == "OfferFeatures":
-            feature_list.append(OfferFeatures())
-        elif name == "InteractionFeatures":
-            feature_list.append(InteractionFeatures())
         elif name == "WaitingStateFeatures":
             feature_list.append(WaitingStateFeatures())
         elif name == "ActivityCountFeatures":
