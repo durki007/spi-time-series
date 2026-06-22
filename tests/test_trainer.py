@@ -45,6 +45,8 @@ def numeric_feature_set():
         feature_names=feature_names,
         trace_ids_train=trace_ids_train,
         trace_ids_test=trace_ids_test,
+        prefix_lengths_train=pd.Series(np.ones(N_TRAIN, dtype=int)),
+        prefix_lengths_test=pd.Series(np.ones(N_TEST, dtype=int)),
     )
 
 
@@ -123,6 +125,8 @@ def test_artifact_target_col_fallback_when_name_is_none(
         feature_names=numeric_feature_set.feature_names,
         trace_ids_train=pd.Series(),
         trace_ids_test=pd.Series(),
+        prefix_lengths_train=numeric_feature_set.prefix_lengths_train,
+        prefix_lengths_test=numeric_feature_set.prefix_lengths_test,
     )
     artifact = train(unnamed_fs, simple_models)
     assert artifact.target_col == "target"
@@ -219,6 +223,8 @@ def test_train_with_mixed_columns_does_not_crash():
         feature_names=list(X.columns),
         trace_ids_train=pd.Series(),
         trace_ids_test=pd.Series(),
+        prefix_lengths_train=pd.Series(np.ones(N, dtype=int)),
+        prefix_lengths_test=pd.Series(np.ones(N, dtype=int)),
     )
     artifact = train(fs, {"ridge": Ridge()})
     preds = artifact.models["ridge"].predict(X)
@@ -292,6 +298,8 @@ def test_pca_reduces_dimensionality():
         feature_names=list(X.columns),
         trace_ids_train=pd.Series(),
         trace_ids_test=pd.Series(),
+        prefix_lengths_train=pd.Series(np.ones(len(X), dtype=int)),
+        prefix_lengths_test=pd.Series(np.ones(len(X), dtype=int)),
     )
 
     artifact = train(

@@ -33,6 +33,8 @@ def _make_classification_data():
 
     trace_ids = pd.Series([f"c{i}" for i in range(n)])
 
+    pl_series = X[_pl_col].reset_index(drop=True)
+
     fs = FeatureSet(
         X_train=X,
         X_test=X,
@@ -41,6 +43,8 @@ def _make_classification_data():
         trace_ids_train=trace_ids,
         trace_ids_test=trace_ids,
         feature_names=list(X.columns),
+        prefix_lengths_train=pl_series,
+        prefix_lengths_test=pl_series,
     )
 
     artifact = ModelArtifact(
@@ -77,6 +81,8 @@ def _make_regression_data():
 
     trace_ids = pd.Series([f"c{i}" for i in range(n)])
 
+    pl_series = X[_pl_col].reset_index(drop=True)
+
     fs = FeatureSet(
         X_train=X,
         X_test=X,
@@ -85,6 +91,8 @@ def _make_regression_data():
         trace_ids_train=trace_ids,
         trace_ids_test=trace_ids,
         feature_names=list(X.columns),
+        prefix_lengths_train=pl_series,
+        prefix_lengths_test=pl_series,
     )
 
     artifact = ModelArtifact(
@@ -167,6 +175,8 @@ def test_shap_non_tree_model_skips_gracefully(tmp_path: Path):
         trace_ids_train=trace_ids,
         trace_ids_test=trace_ids,
         feature_names=list(X.columns),
+        prefix_lengths_train=pd.Series([1] * len(X), dtype=int),
+        prefix_lengths_test=pd.Series([1] * len(X), dtype=int),
     )
 
     artifact = ModelArtifact(
