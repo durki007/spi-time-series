@@ -1,10 +1,17 @@
 task: regression
+checkpoint_dir: ../data/checkpoints
 
 data:
+  top_k_variants: null
   split_quantile: 0.8
 
 prefix:
   min_length: 3
+  max_length: 100
+
+features:
+  one_hot_encode_categorical: false
+  exclude_features: []
 
 search:
   n_iter: 10
@@ -14,6 +21,7 @@ search:
 
 pca_config:
   active: False
+  keep_variability: 0.95
 
 models:
   random_forest:
@@ -67,3 +75,29 @@ ablation:
           - TemporalFeatures
           - WaitingStateFeatures
           - FinancialFeatures
+  ts:
+    base:
+      - ActivityCountFeatures
+      - TemporalFeatures
+      - WaitingStateFeatures
+      - FinancialFeatures
+    combinations:
+      - name: ATWF+D
+        features: [DecisionRateFeature]
+      - name: ATWF+C
+        features: [ActiveCaseCountFeature]
+      - name: ATWF+V
+        features: [FinancialVolumeFeature]
+      - name: ATWF+V+D
+        features: [FinancialVolumeFeature, DecisionRateFeature]
+      - name: ATWF+C+V+D
+        features:
+          - ActiveCaseCountFeature
+          - FinancialVolumeFeature
+          - DecisionRateFeature
+      - name: ATWF+C+D
+        features: [ActiveCaseCountFeature, DecisionRateFeature]
+      - name: ATWF+C+V
+        features: [ActiveCaseCountFeature, FinancialVolumeFeature]
+      - name: ATWF
+        features: []
