@@ -14,7 +14,6 @@ from spi_time_series.data.schemas import (
     FeatureSet,
     ModelArtifact,
 )
-from spi_time_series.evaluation.metrics import _PREFIX_LENGTH_COL
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +22,8 @@ def evaluate_feature_importance(
     artifact: ModelArtifact, features: FeatureSet, task: TaskType
 ) -> EvaluationReport:
     feature_importance: dict[str, dict[str, Any]] = {}
-    groups: dict = features.X_test.groupby(_PREFIX_LENGTH_COL).groups
+    pls = features.prefix_lengths_test
+    groups: dict = pls.groupby(pls).groups
     prefix_lengths: list[int] = sorted(int(pl) for pl in groups)
     model_names: list[str] = list(artifact.models)
 
@@ -57,7 +57,8 @@ def evaluate_feature_importance_per_prefix(
 ) -> EvaluationReport:
     prefix_feature_importance: dict[str, dict[int, dict[str, Any]]] = {}
 
-    groups: dict = features.X_test.groupby(_PREFIX_LENGTH_COL).groups
+    pls = features.prefix_lengths_test
+    groups: dict = pls.groupby(pls).groups
     prefix_lengths: list[int] = sorted(int(pl) for pl in groups)
     model_names: list[str] = list(artifact.models)
 
@@ -105,7 +106,7 @@ def report_feature_importance(
 
     columns = ["feature", "importance_mean", "importance_std"]
 
-    # model importance
+    all_rows = []
     for model, metrics in report.model_metrics.items():
         if any(col not in metrics for col in columns):
             continue
@@ -118,6 +119,14 @@ def report_feature_importance(
         save_feature_importance_plot(
             df, reports_dir / f"{model}_feature_importance.png"
         )
+
+        for _, row in df.iterrows():
+            all_rows.append({"model": model, **row.to_dict()})
+
+    if all_rows:
+        csv_path = reports_dir / "importance_overall.csv"
+        pd.DataFrame(all_rows).to_csv(csv_path, index=False)
+        logger.info("Overall feature importance saved to %s", csv_path)
 
 
 def report_prefix_importance_visualizations(
@@ -149,6 +158,10 @@ def report_prefix_importance_visualizations(
     importance_df: pd.DataFrame = _prefix_importance_to_dataframe(report)
     vis_dir: Path = output_dir / "feature_importance"
     vis_dir.mkdir(parents=True, exist_ok=True)
+
+    csv_path = vis_dir / "importance_per_prefix.csv"
+    importance_df.to_csv(csv_path, index=False)
+    logger.info("Per-prefix feature importance saved to %s", csv_path)
 
     for model_name in report.feature_importance:
         model_df: pd.DataFrame = importance_df.query(f"model == '{model_name}'")

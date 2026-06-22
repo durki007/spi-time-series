@@ -1,0 +1,45 @@
+task: regression
+checkpoint_dir: ../data/checkpoints
+
+data:
+  top_k_variants: null
+  split_quantile: 0.8
+  # dev_mode: true
+
+prefix:
+  min_length: 3
+  max_length: 100
+
+features:
+  one_hot_encode_categorical: false
+  enabled_features:
+    - TemporalFeatures
+    - ActivityCountFeatures
+    - OfferFeatures
+    - InteractionFeatures
+    - WaitingStateFeatures
+    - FinancialFeatures
+    - ActiveCaseCountFeature
+    - FinancialVolumeFeature
+    - DecisionRateFeature
+  exclude_features: []
+
+search:
+  n_iter: 10
+  cv_folds: 3
+  random_state: 42
+  search_sample_size: null
+
+pca_config:
+  active: False
+  keep_variability: 0.95
+
+models:
+  random_forest:
+    model_type: RandomForestRegressor
+    params:
+      random_state: 42
+      n_estimators: 150
+      min_samples_split: 10
+      max_features: sqrt
+      max_depth: 10

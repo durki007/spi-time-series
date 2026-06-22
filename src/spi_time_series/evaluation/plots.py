@@ -35,8 +35,8 @@ from sklearn.metrics import (
     roc_curve,
 )
 
+from spi_time_series.data.schemas import EvaluationReport, ModelArtifact
 from spi_time_series.evaluation.metrics import (
-    _PREFIX_LENGTH_COL,
     detect_task,
     select_primary_metric,
 )
@@ -86,7 +86,7 @@ def _plot_error_distribution(
     models: dict,
     X_test: pd.DataFrame,
     y_test: pd.Series,
-    prefix_length_col: str,
+    prefix_lengths: pd.Series,
     output_path: Path,
     *,
     dpi: int = 300,
@@ -101,7 +101,7 @@ def _plot_error_distribution(
                 {
                     "model": model_name,
                     "residual": res,
-                    "prefix_length": X_test.iloc[i][prefix_length_col],
+                    "prefix_length": prefix_lengths.iloc[i],
                 }
             )
 
@@ -149,7 +149,7 @@ def _plot_predicted_vs_actual(
     models: dict,
     X_test: pd.DataFrame,
     y_test: pd.Series,
-    prefix_length_col: str,
+    prefix_lengths: pd.Series,
     output_path: Path,
     *,
     dpi: int = 300,
@@ -172,7 +172,7 @@ def _plot_predicted_vs_actual(
         ax = axes[row][col]
 
         y_pred = pipeline.predict(X_test)
-        prefix_vals = X_test[prefix_length_col].values
+        prefix_vals = prefix_lengths.values
 
         scatter = ax.scatter(
             y_test,
@@ -210,7 +210,7 @@ def _plot_roc_pr_curves(
     models: dict,
     X_test: pd.DataFrame,
     y_test: pd.Series,
-    prefix_length_col: str,
+    prefix_lengths: pd.Series,
     output_path: Path,
     *,
     dpi: int = 300,
@@ -227,13 +227,13 @@ def _plot_roc_pr_curves(
         squeeze=False,
     )
 
-    prefix_lengths = sorted(X_test[prefix_length_col].unique())
-    n_pl = len(prefix_lengths)
-    show_prefixes = [prefix_lengths[0]]
+    sorted_pls = sorted(prefix_lengths.unique())
+    n_pl = len(sorted_pls)
+    show_prefixes = [sorted_pls[0]]
     if n_pl > 2:
-        show_prefixes.append(prefix_lengths[n_pl // 2])
+        show_prefixes.append(sorted_pls[n_pl // 2])
     if n_pl > 1:
-        show_prefixes.append(prefix_lengths[-1])
+        show_prefixes.append(sorted_pls[-1])
 
     for idx, (model_name, pipeline) in enumerate(models.items()):
         if not hasattr(pipeline, "predict_proba"):
@@ -250,7 +250,7 @@ def _plot_roc_pr_curves(
         ax_pr = axes[idx][1]
 
         for pl in show_prefixes:
-            mask = X_test[prefix_length_col] == pl
+            mask = prefix_lengths == pl
             if mask.sum() == 0:
                 continue
             y_true_g = y_test[mask]
@@ -309,6 +309,62 @@ def _plot_roc_pr_curves(
 
 
 # ---------------------------------------------------------------------------
+# Reporter
+# ---------------------------------------------------------------------------
+
+
+def report_metric_plots(
+    artifact: ModelArtifact,
+    report: EvaluationReport,
+    output_dir: Path | None,
+    *,
+    dpi: int = 150,
+) -> None:
+    """Reporter: save one line-plot PNG per metric vs prefix length."""
+    if output_dir is None:
+        logger.warning("No output directory; skipping metric line plots.")
+        return
+    if not report.prefix_metrics:
+        logger.warning(
+            "No prefix metrics in report; skipping metric line plots."
+        )
+        return
+
+    rows = [
+        {"model": model, "prefix_length": pl, **metrics}
+        for model, by_prefix in report.prefix_metrics.items()
+        for pl, metrics in by_prefix.items()
+    ]
+    df = pd.DataFrame(rows).sort_values(["model", "prefix_length"])
+    metric_cols = [c for c in df.columns if c not in ("model", "prefix_length")]
+
+    plots_dir = output_dir / "reports"
+    plots_dir.mkdir(parents=True, exist_ok=True)
+
+    for metric in metric_cols:
+        fig, ax = plt.subplots(figsize=(10, 6))
+        sns.lineplot(
+            data=df,
+            x="prefix_length",
+            y=metric,
+            hue="model",
+            style="model",
+            markers=True,
+            linewidth=2,
+            ax=ax,
+        )
+        ax.set_title(f"{metric.upper()} vs Prefix Length")
+        ax.set_xlabel("Prefix Length")
+        ax.set_ylabel(metric.upper())
+        ax.legend(title="Model", loc="best")
+        fig.tight_layout()
+        out = plots_dir / f"{metric}_vs_prefix.png"
+        fig.savefig(out, dpi=dpi)
+        plt.close(fig)
+        logger.info("Saved %s plot: %s", metric, out)
+
+
+# ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
 
@@ -362,12 +418,14 @@ def main() -> None:
         csv_path, metric, output_dir / "metric_vs_prefix.png", dpi=args.dpi
     )
 
+    prefix_lengths = state.features.prefix_lengths_test
+
     if task == "regression":
         _plot_error_distribution(
             state.trained_models,
             X_test,
             y_test,
-            _PREFIX_LENGTH_COL,
+            prefix_lengths,
             output_dir / "error_distribution.png",
             dpi=args.dpi,
         )
@@ -375,7 +433,7 @@ def main() -> None:
             state.trained_models,
             X_test,
             y_test,
-            _PREFIX_LENGTH_COL,
+            prefix_lengths,
             output_dir / "predicted_vs_actual.png",
             dpi=args.dpi,
         )
@@ -388,7 +446,7 @@ def main() -> None:
                 state.trained_models,
                 X_test,
                 y_test,
-                _PREFIX_LENGTH_COL,
+                prefix_lengths,
                 output_dir / "roc_pr_curves.png",
                 dpi=args.dpi,
             )
