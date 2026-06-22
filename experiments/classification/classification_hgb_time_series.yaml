@@ -16,8 +16,6 @@ features:
   enabled_features:
     - TemporalFeatures
     - ActivityCountFeatures
-    - OfferFeatures
-    - InteractionFeatures
     - WaitingStateFeatures
     - FinancialFeatures
     - ActiveCaseCountFeature
