@@ -359,6 +359,9 @@ log+TS variant. We analyse possible reasons in
 \subsection{Ablation Study}
 \label{sec:feature-importance}
 
+\subsubsection{Classification}
+\label{sec:ablation-classification}
+
 We conducted an ablation study to measure the standalone and combined
 predictive power of each log-based feature group. Groups are denoted A
 (activity counts, 26 features), T (temporal, 2), F (financial, 2), and W
@@ -443,13 +446,15 @@ threshold-based improvement at the cost of discrimination) does not
 justify the additional feature engineering and model complexity. We therefore select the log-only A+W
 model for the main comparison.
 
-Permutation feature importance on the A+W model confirms that
-activity-count features dominate the top predictors across both
-datasets. No time-series feature ranks among the top 20 predictors
-in any configuration, and adding TS features does not
-alter the ranking of the log-based features. This is
-consistent with the ablation results: the log-based signal already
-captures the information that TS features attempt to provide.
+\subsubsection{Regression}
+\label{sec:ablation-regression}
+
+A corresponding ablation for the regression task was not
+performed. Given that time-series features degraded performance
+for all prefix lengths (\autoref{sec:results-time}), the log-only
+configuration was adopted without further feature group analysis.
+The classification ablation confirms that the A+W configuration
+generalises well and is used as the reference model for both tasks.
 
 % =============================================================================
 \section{Testing Evidence}

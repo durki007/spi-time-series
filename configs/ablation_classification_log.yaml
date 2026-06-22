@@ -1,0 +1,52 @@
+task: classification
+
+data:
+  split_quantile: 0.8
+
+prefix:
+  min_length: 3
+
+search:
+  n_iter: 10
+  cv_folds: 3
+  random_state: 42
+  search_sample_size: 50000
+
+pca_config:
+  active: False
+
+models:
+  random_forest:
+    model_type: RandomForestClassifier
+    params:
+      n_jobs: -1
+      class_weight: balanced
+      random_state: 42
+    param_grid:
+      n_estimators: [300, 500]
+      max_depth: [20, 30]
+      min_samples_leaf: [1, 5]
+      max_features: [sqrt]
+
+ablation:
+  metric: roc_auc
+  log:
+    combinations:
+      - name: dummy
+        features: []
+      - name: A
+        features: [ActivityCountFeatures]
+      - name: W
+        features: [WaitingStateFeatures]
+      - name: AW
+        features: [ActivityCountFeatures, WaitingStateFeatures]
+      - name: AT
+        features: [ActivityCountFeatures, TemporalFeatures]
+      - name: AF
+        features: [ActivityCountFeatures, FinancialFeatures]
+      - name: ATWF
+        features:
+          - ActivityCountFeatures
+          - TemporalFeatures
+          - WaitingStateFeatures
+          - FinancialFeatures

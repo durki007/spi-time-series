@@ -60,6 +60,28 @@ _FEATURES = {
     "DecisionRateFeature",
 }
 
+_REGRESSION_METRICS = frozenset(
+    {
+        "mae",
+        "rmse",
+        "r2",
+        "median_ae",
+    }
+)
+
+_CLASSIFICATION_METRICS = frozenset(
+    {
+        "accuracy",
+        "balanced_accuracy",
+        "f1_macro",
+        "f1_weighted",
+        "precision_macro",
+        "recall_macro",
+        "roc_auc",
+        "pr_auc",
+    }
+)
+
 
 class ModelConfig(BaseModel):
     model_config = ConfigDict(frozen=True, populate_by_name=True)
@@ -195,6 +217,61 @@ class PCAConfig(BaseModel):
     keep_variability: float = 0.95
 
 
+class FeatureCombo(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    features: list[str]
+
+    @field_validator("features")
+    @classmethod
+    def features_in_allowlist(cls, v: list[str]) -> list[str]:
+        for name in v:
+            if name not in _FEATURES:
+                allowed = sorted(_FEATURES)
+                raise ValueError(
+                    f"'{name}' is not a recognized feature. Valid choices: {allowed}"
+                )
+        return v
+
+
+class LogAblation(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    combinations: list[FeatureCombo]
+
+
+class TsAblation(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    base: list[str]
+    combinations: list[FeatureCombo]
+
+    @field_validator("base")
+    @classmethod
+    def base_in_allowlist(cls, v: list[str]) -> list[str]:
+        for name in v:
+            if name not in _FEATURES:
+                allowed = sorted(_FEATURES)
+                raise ValueError(
+                    f"'{name}' is not a recognized feature. Valid choices: {allowed}"
+                )
+        return v
+
+
+class AblationConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    metric: str = "roc_auc"
+    log: LogAblation
+    ts: TsAblation | None = None
+
+    @model_validator(mode="after")
+    def metric_valid_for_task(self, info) -> AblationConfig:
+        # Task is not available here — validated in RunConfig.task_metric_align
+        return self
+
+
 class RunConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -205,6 +282,7 @@ class RunConfig(BaseModel):
     search: SearchConfig = Field(default_factory=SearchConfig)
     pca_config: PCAConfig = Field(default_factory=PCAConfig)
     models: dict[str, ModelConfig]
+    ablation: AblationConfig | None = None
 
     @field_validator("models")
     @classmethod
@@ -231,6 +309,22 @@ class RunConfig(BaseModel):
                 raise ValueError(
                     f"models.{name}.model_type '{m.model_type}' is a regressor "
                     f"but task is 'classification'."
+                )
+        return self
+
+    @model_validator(mode="after")
+    def task_metric_align(self) -> RunConfig:
+        if self.ablation is not None:
+            metric = self.ablation.metric
+            allowed = (
+                _REGRESSION_METRICS
+                if self.task == "regression"
+                else _CLASSIFICATION_METRICS
+            )
+            if metric not in allowed:
+                raise ValueError(
+                    f"ablation.metric '{metric}' is not valid for task "
+                    f"'{self.task}'. Valid choices: {sorted(allowed)}"
                 )
         return self
 

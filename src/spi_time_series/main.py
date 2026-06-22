@@ -399,6 +399,19 @@ def main(argv: list[str] | None = None) -> None:
     )
     logging.getLogger().addHandler(file_handler)
 
+    # -- ablation mode --------------------------------------------------
+    if config.ablation is not None:
+        from spi_time_series.evaluation.ablation import AblationRunner
+
+        AblationRunner(config).run(
+            output_dir=output_dir,
+            force=args.force,
+            n_jobs=args.jobs,
+            search_config=config.search,
+        )
+        save_config(config, output_dir / "run_config.yaml")
+        return
+
     pipeline = (
         PipelineBuilder.from_config(config)
         .with_feature_extractor(_build_default_feature_extractor(config))
