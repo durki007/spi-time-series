@@ -49,8 +49,6 @@ _CLASSIFICATION_TYPES = {
 
 _FEATURES = {
     "BasicControlFlowFeatures",
-    "OfferFeatures",
-    "InteractionFeatures",
     "WaitingStateFeatures",
     "ActivityCountFeatures",
     "TemporalFeatures",
