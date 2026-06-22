@@ -67,11 +67,12 @@ def search_hyperparams(
     *,
     pca_keep_percentage: float | None = None,
     n_jobs: int = 1,
-) -> dict[str, BaseEstimator]:
+) -> tuple[dict[str, BaseEstimator], dict[str, dict]]:
     """Run RandomizedSearchCV for each model that has a param_grid.
 
-    Returns estimators with best hyperparameters set but not yet fitted on the
-    full training data — train() does the actual full fit.
+    Returns (optimized_models, best_params) where optimized_models has best
+    hyperparameters set but is not yet fitted — train() does the actual full
+    fit.  best_params maps model name → searched param dict.
     """
     X_train = features.X_train
     y_train = features.y_train
@@ -98,17 +99,19 @@ def search_hyperparams(
     X_num = search_pre.fit_transform(X_train)
 
     optimized: dict[str, BaseEstimator] = {}
+    best_params_found: dict[str, dict] = {}
     total = len(models)
     for idx, (name, estimator) in enumerate(
         tqdm(models.items(), desc="Searching hyperparams", unit="model")
     ):
         remaining = total - idx - 1
         logger.info(
-            "Searching '%s' (%d/%d, %d remaining)…",
+            "Searching '%s' (%d/%d, %d remaining): %r",
             name,
             idx + 1,
             total,
             remaining,
+            estimator,
         )
         grid = param_grids.get(name, {})
         if not grid:
@@ -116,8 +119,14 @@ def search_hyperparams(
             optimized[name] = estimator
             continue
 
+        # Disable inner parallelism so only RandomizedSearchCV.n_jobs controls
+        # core usage — avoids using n_jobs * n_cores threads simultaneously.
+        search_est = clone(estimator)
+        if "n_jobs" in search_est.get_params():
+            search_est.set_params(n_jobs=1)
+
         cv = RandomizedSearchCV(
-            estimator,
+            search_est,
             grid,
             n_iter=search_config.n_iter,
             cv=search_config.cv_folds,
@@ -131,9 +140,10 @@ def search_hyperparams(
 
         best_params = cv.best_params_
         logger.info("'%s' best params: %s", name, best_params)
+        best_params_found[name] = best_params
         optimized[name] = clone(estimator).set_params(**best_params)
 
-    return optimized
+    return optimized, best_params_found
 
 
 def train(
@@ -155,7 +165,7 @@ def train(
     for name, estimator in tqdm(
         models.items(), desc="Training models", unit="model"
     ):
-        logger.info("Fitting '%s'…", name)
+        logger.info("Fitting '%s': %r", name, estimator)
 
         steps = [("preprocessor", _build_numeric_preprocessor())]
 

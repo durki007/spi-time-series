@@ -48,6 +48,7 @@ def _make_feature_set(
         y = pd.Series(targets, name="remaining_time_hours")
 
     trace_ids = pd.Series(["A"] * len(y))
+    pl_series = X[_PREFIX_COL].astype(int).reset_index(drop=True)
 
     return FeatureSet(
         X_train=X,
@@ -57,6 +58,8 @@ def _make_feature_set(
         feature_names=list(X.columns),
         trace_ids_train=trace_ids,
         trace_ids_test=trace_ids,
+        prefix_lengths_train=pl_series,
+        prefix_lengths_test=pl_series,
     )
 
 
@@ -267,6 +270,7 @@ def test_roc_auc_is_05_for_constant_predictor_multi_class():
         targets.append(i % 2)
     X = pd.DataFrame(rows).reset_index(drop=True)
     y = pd.Series(targets, name="outcome")
+    pl_series = pd.Series([2] * len(y), dtype=int)
     fs = FeatureSet(
         X_train=X,
         X_test=X,
@@ -275,6 +279,8 @@ def test_roc_auc_is_05_for_constant_predictor_multi_class():
         feature_names=list(X.columns),
         trace_ids_train=pd.Series(),
         trace_ids_test=pd.Series(),
+        prefix_lengths_train=pl_series,
+        prefix_lengths_test=pl_series,
     )
     artifact = _make_artifact({"constant": ConstantPredictor(0)})
     report = evaluate(artifact, fs, "classification")
@@ -306,6 +312,8 @@ def test_missing_prefix_length_column_does_not_raise():
         feature_names=list(X.columns),
         trace_ids_train=pd.Series(),
         trace_ids_test=pd.Series(),
+        prefix_lengths_train=pd.Series(dtype=int),
+        prefix_lengths_test=pd.Series(dtype=int),
     )
     artifact = _make_artifact({"m": ConstantPredictor(15.0)})
     import warnings
@@ -392,6 +400,7 @@ def test_compare_models_weighted_avg_differs_when_unequal():
 
     X = pd.DataFrame(rows).reset_index(drop=True)
     y = pd.Series(targets, name="remaining_time_hours")
+    pl_series = X[_PREFIX_COL].astype(int).reset_index(drop=True)
     fs = FeatureSet(
         X_train=X,
         X_test=X,
@@ -400,6 +409,8 @@ def test_compare_models_weighted_avg_differs_when_unequal():
         feature_names=list(X.columns),
         trace_ids_train=pd.Series(),
         trace_ids_test=pd.Series(),
+        prefix_lengths_train=pl_series,
+        prefix_lengths_test=pl_series,
     )
 
     artifact = _make_artifact({"m": ConstantPredictor(10.0)})

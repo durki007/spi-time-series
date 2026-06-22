@@ -19,3 +19,12 @@ axhline
 axvline
 lims
 prec
+pvalue
+samp
+xticks
+xticklabels
+corrcoef
+annot
+yticklabels
+ylim
+mccs

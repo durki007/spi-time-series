@@ -35,6 +35,7 @@ def _init_worker(features, target_generator, col_idx_mapping):
 def _process_sample(sample: TraceSample):
     rows = []
     targets = []
+    prefix_lens = []
 
     data = sample.data
     if (
@@ -76,7 +77,9 @@ def _process_sample(sample: TraceSample):
             )
         )
 
-    return rows, targets, trace_id
+        prefix_lens.append(end_idx - start_idx)
+
+    return rows, targets, trace_id, prefix_lens
 
 
 def generate_feature_matrix(
@@ -106,6 +109,7 @@ def generate_feature_matrix(
     all_rows = []
     all_targets = []
     all_trace_ids = []
+    all_prefix_lens = []
 
     with Pool(
         cpu_count(),
@@ -123,7 +127,7 @@ def generate_feature_matrix(
             chunksize=chunk_size,
         )
 
-        for rows, targets, trace_id in tqdm(
+        for rows, targets, trace_id, prefix_lens in tqdm(
             results,
             total=len(samples),
             desc="Processing cases",
@@ -131,6 +135,7 @@ def generate_feature_matrix(
             all_rows.extend(rows)
             all_targets.extend(targets)
             all_trace_ids.extend(len(rows) * [trace_id])
+            all_prefix_lens.extend(prefix_lens)
 
     # ---------------------------------------------------------
     # FINALIZE
@@ -143,8 +148,9 @@ def generate_feature_matrix(
 
     y = pd.Series(all_targets)
     trace_ids = pd.Series(all_trace_ids)
+    prefix_lengths = pd.Series(all_prefix_lens, dtype=int)
 
-    return X, y, feature_names, trace_ids
+    return X, y, feature_names, trace_ids, prefix_lengths
 
 
 def extract_features_builder(
@@ -194,20 +200,26 @@ def extract_features_builder(
             logger.info("Fitting %s", feature.name())
             feature.fit(data.train_log, data.col_idx, **kwargs)
 
-        X_train, y_train, feature_names, trace_ids_train = (
+        (
+            X_train,
+            y_train,
+            feature_names,
+            trace_ids_train,
+            prefix_lengths_train,
+        ) = generate_feature_matrix(
+            samples=data.train_log,
+            features=features,
+            target_generator=target_generator,
+            col_idx_mapping=data.col_idx,
+        )
+
+        X_test, y_test, _, trace_ids_test, prefix_lengths_test = (
             generate_feature_matrix(
-                samples=data.train_log,
+                samples=data.test_log,
                 features=features,
                 target_generator=target_generator,
                 col_idx_mapping=data.col_idx,
             )
-        )
-
-        X_test, y_test, _, trace_ids_test = generate_feature_matrix(
-            samples=data.test_log,
-            features=features,
-            target_generator=target_generator,
-            col_idx_mapping=data.col_idx,
         )
 
         # ---------------------------------------------------------
@@ -244,6 +256,8 @@ def extract_features_builder(
             feature_names=feature_names,
             trace_ids_train=trace_ids_train,
             trace_ids_test=trace_ids_test,
+            prefix_lengths_train=prefix_lengths_train,
+            prefix_lengths_test=prefix_lengths_test,
         )
 
     return extract_features

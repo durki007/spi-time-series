@@ -119,7 +119,7 @@ def test_plot_error_distribution(tmp_path: Path):
         models,
         X,
         y,
-        "BasicControlFlowFeatures__prefix_length",
+        X["BasicControlFlowFeatures__prefix_length"],
         out,
     )
     assert out.exists()
@@ -133,7 +133,7 @@ def test_plot_predicted_vs_actual(tmp_path: Path):
         models,
         X,
         y,
-        "BasicControlFlowFeatures__prefix_length",
+        X["BasicControlFlowFeatures__prefix_length"],
         out,
     )
     assert out.exists()
@@ -147,7 +147,7 @@ def test_plot_roc_pr_curves(tmp_path: Path):
         models,
         X,
         y,
-        "BasicControlFlowFeatures__prefix_length",
+        X["BasicControlFlowFeatures__prefix_length"],
         out,
     )
     assert out.exists()
@@ -161,7 +161,7 @@ def test_plot_roc_pr_curves_small_data(tmp_path: Path):
         models,
         X,
         y,
-        "BasicControlFlowFeatures__prefix_length",
+        X["BasicControlFlowFeatures__prefix_length"],
         out,
     )
     assert out.exists()

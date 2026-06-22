@@ -27,10 +27,31 @@ from spi_time_series.data.schemas import (
     PreprocessedData,
 )
 from spi_time_series.data.types import FeatureExtractor
+from spi_time_series.evaluation.confusion_matrix import (
+    evaluate_confusion_matrix,
+    report_confusion_matrix,
+)
+from spi_time_series.evaluation.feature_drift import (
+    evaluate_feature_drift,
+    report_feature_drift,
+)
+from spi_time_series.evaluation.feature_importance import (
+    evaluate_feature_importance,
+    evaluate_feature_importance_per_prefix,
+    report_feature_importance,
+)
+from spi_time_series.evaluation.feature_importance import (
+    report_prefix_importance_visualizations as _save_prefix_importance_visualizations,
+)
 from spi_time_series.evaluation.metrics import (
     _make_model_comparison_reporter,
     evaluate,
 )
+from spi_time_series.evaluation.overfitting import (
+    evaluate_overfitting,
+    report_overfitting,
+)
+from spi_time_series.evaluation.plots import report_metric_plots
 from spi_time_series.features.extraction import extract_features_builder
 from spi_time_series.features.log_based_features import (
     ActivityCountFeatures,
@@ -343,6 +364,40 @@ def _save_predictions(
 # ---------------------------------------------------------------------------
 
 
+def _apply_best_params_to_config(
+    config: RunConfig, best_params: dict[str, dict]
+) -> RunConfig:
+    """Return a new RunConfig with found hyperparameters baked into each model.
+
+    For every model that was searched, its ``params`` field is updated with the
+    best values found and its ``param_grid`` is cleared.  This makes the saved
+    run_config.yaml self-contained: re-running it skips the search stage
+    automatically because param_grid is empty.
+    """
+    import numpy as np
+
+    def _to_scalar(v: Any) -> int | float | str | bool | None:
+        if isinstance(v, np.integer):
+            return int(v)
+        if isinstance(v, np.floating):
+            return float(v)
+        return v  # type: ignore[no-any-return]
+
+    updated_models = {}
+    for name, model_cfg in config.models.items():
+        if name not in best_params:
+            updated_models[name] = model_cfg
+            continue
+        merged = {
+            **model_cfg.params,
+            **{k: _to_scalar(v) for k, v in best_params[name].items()},
+        }
+        updated_models[name] = model_cfg.model_copy(
+            update={"params": merged, "param_grid": {}}
+        )
+    return config.model_copy(update={"models": updated_models})
+
+
 def _compute_extract_key(config: RunConfig) -> str:
     """Hash the config sections that affect the extract stage."""
     return str(
@@ -412,15 +467,30 @@ def main(argv: list[str] | None = None) -> None:
         save_config(config, output_dir / "run_config.yaml")
         return
 
-    pipeline = (
+    builder = (
         PipelineBuilder.from_config(config)
         .with_feature_extractor(_build_default_feature_extractor(config))
         .add_evaluator(evaluate)
+        .add_evaluator(evaluate_overfitting)
         .add_reporter(_save_report)
+        .add_reporter(report_metric_plots)
+        .add_reporter(report_overfitting)
+        .add_evaluator(evaluate_feature_drift)
+        .add_reporter(report_feature_drift)
+        .add_evaluator(evaluate_feature_importance)
+        .add_reporter(report_feature_importance)
+        .add_evaluator(evaluate_feature_importance_per_prefix)
+        .add_reporter(_save_prefix_importance_visualizations)
         .add_reporter(_make_model_comparison_reporter(config.task))
         .add_reporter(_save_predictions)
-        .build()
     )
+
+    if config.task == "classification":
+        builder = builder.add_evaluator(evaluate_confusion_matrix).add_reporter(
+            report_confusion_matrix
+        )
+
+    pipeline = builder.build()
 
     checkpoint_path = output_dir / "checkpoint.joblib"
 
@@ -448,7 +518,8 @@ def main(argv: list[str] | None = None) -> None:
     if pipeline.is_fitted:
         pipeline.evaluate(output_dir=output_dir)
 
-    save_config(config, output_dir / "run_config.yaml")
+    resolved_config = _apply_best_params_to_config(config, pipeline.best_params)
+    save_config(resolved_config, output_dir / "run_config.yaml")
     logger.info("Resolved config saved to %s", output_dir / "run_config.yaml")
 
 
