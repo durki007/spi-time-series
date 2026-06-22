@@ -1,0 +1,77 @@
+task: regression
+checkpoint_dir: ../data/checkpoints
+
+data:
+  top_k_variants: null
+  split_quantile: 0.8
+
+prefix:
+  min_length: 3
+  max_length: 100
+
+features:
+  one_hot_encode_categorical: false
+  exclude_features: []
+
+search:
+  n_iter: 10
+  cv_folds: 3
+  random_state: 42
+  search_sample_size: 50000
+
+pca_config:
+  active: False
+  keep_variability: 0.95
+
+models:
+  random_forest:
+    model_type: RandomForestRegressor
+    params:
+      n_jobs: -1
+      random_state: 42
+    param_grid:
+      n_estimators: [100, 200]
+      max_depth: [10, 15, 20]
+      min_samples_leaf: [5, 10]
+      max_features: [sqrt]
+
+ablation:
+  metric: rmse
+  log:
+    combinations:
+      - name: dummy
+        features: []
+      - name: A
+        features: [ActivityCountFeatures]
+      - name: W
+        features: [WaitingStateFeatures]
+      - name: T
+        features: [TemporalFeatures]
+      - name: F
+        features: [FinancialFeatures]
+      - name: AW
+        features: [ActivityCountFeatures, WaitingStateFeatures]
+      - name: AT
+        features: [ActivityCountFeatures, TemporalFeatures]
+      - name: AF
+        features: [ActivityCountFeatures, FinancialFeatures]
+      - name: WT
+        features: [WaitingStateFeatures, TemporalFeatures]
+      - name: WF
+        features: [WaitingStateFeatures, FinancialFeatures]
+      - name: TF
+        features: [TemporalFeatures, FinancialFeatures]
+      - name: AWT
+        features: [ActivityCountFeatures, WaitingStateFeatures, TemporalFeatures]
+      - name: AWF
+        features: [ActivityCountFeatures, WaitingStateFeatures, FinancialFeatures]
+      - name: ATF
+        features: [ActivityCountFeatures, TemporalFeatures, FinancialFeatures]
+      - name: WTF
+        features: [WaitingStateFeatures, TemporalFeatures, FinancialFeatures]
+      - name: ATWF
+        features:
+          - ActivityCountFeatures
+          - TemporalFeatures
+          - WaitingStateFeatures
+          - FinancialFeatures

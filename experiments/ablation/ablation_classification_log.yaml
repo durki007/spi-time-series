@@ -1,0 +1,79 @@
+task: classification
+checkpoint_dir: ../data/checkpoints
+
+data:
+  top_k_variants: null
+  split_quantile: 0.8
+  outcome_class: 2class
+
+prefix:
+  min_length: 3
+  max_length: 100
+
+features:
+  one_hot_encode_categorical: false
+  exclude_features: []
+
+search:
+  n_iter: 10
+  cv_folds: 3
+  random_state: 42
+  search_sample_size: 50000
+
+pca_config:
+  active: False
+  keep_variability: 0.95
+
+models:
+  random_forest:
+    model_type: RandomForestClassifier
+    params:
+      n_jobs: -1
+      class_weight: balanced
+      random_state: 42
+    param_grid:
+      n_estimators: [300, 500]
+      max_depth: [20, 30]
+      min_samples_leaf: [1, 5]
+      max_features: [sqrt]
+
+ablation:
+  metric: roc_auc
+  log:
+    combinations:
+      - name: dummy
+        features: []
+      - name: F
+        features: [FinancialFeatures]
+      - name: W
+        features: [WaitingStateFeatures]
+      - name: T
+        features: [TemporalFeatures]
+      - name: T+F
+        features: [TemporalFeatures, FinancialFeatures]
+      - name: F+W
+        features: [FinancialFeatures, WaitingStateFeatures]
+      - name: T+W
+        features: [TemporalFeatures, WaitingStateFeatures]
+      - name: T+F+W
+        features: [TemporalFeatures, FinancialFeatures, WaitingStateFeatures]
+      - name: A+F
+        features: [ActivityCountFeatures, FinancialFeatures]
+      - name: A+T
+        features: [ActivityCountFeatures, TemporalFeatures]
+      - name: A+F+W
+        features: [ActivityCountFeatures, FinancialFeatures, WaitingStateFeatures]
+      - name: A+T+W
+        features: [ActivityCountFeatures, TemporalFeatures, WaitingStateFeatures]
+      - name: A+T+F
+        features: [ActivityCountFeatures, TemporalFeatures, FinancialFeatures]
+      - name: A+T+F+W
+        features:
+          - ActivityCountFeatures
+          - TemporalFeatures
+          - FinancialFeatures
+          - WaitingStateFeatures
+      - name: A
+        features: [ActivityCountFeatures]
+      - name: A+W
+        features: [ActivityCountFeatures, WaitingStateFeatures]
