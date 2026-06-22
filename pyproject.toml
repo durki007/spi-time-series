@@ -50,6 +50,9 @@ pytest-cov = ">=7.1.0,<8.0.0"
 markers = [
     "integration: tests that make real network or filesystem calls (deselect with '-m not integration')",
 ]
+filterwarnings = [
+    "ignore::PendingDeprecationWarning",
+]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

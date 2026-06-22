@@ -27,8 +27,6 @@ from spi_time_series.features.log_based_features import (
     ActivityCountFeatures,
     BasicControlFlowFeatures,
     FinancialFeatures,
-    InteractionFeatures,
-    OfferFeatures,
     TemporalFeatures,
     WaitingStateFeatures,
 )
@@ -52,8 +50,6 @@ logger = logging.getLogger(__name__)
 
 _FEATURE_CLASSES: dict[str, type] = {
     "BasicControlFlowFeatures": BasicControlFlowFeatures,
-    "OfferFeatures": OfferFeatures,
-    "InteractionFeatures": InteractionFeatures,
     "WaitingStateFeatures": WaitingStateFeatures,
     "ActivityCountFeatures": ActivityCountFeatures,
     "TemporalFeatures": TemporalFeatures,

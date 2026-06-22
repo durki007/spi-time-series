@@ -293,12 +293,14 @@ def _plot_roc_pr_curves(
         ax_roc.set_title(f"{model_name} — ROC Curves")
         ax_roc.set_xlabel("False Positive Rate")
         ax_roc.set_ylabel("True Positive Rate")
-        ax_roc.legend(fontsize=7, loc="lower right")
+        if ax_roc.get_legend_handles_labels()[0]:
+            ax_roc.legend(fontsize=7, loc="lower right")
 
         ax_pr.set_title(f"{model_name} — PR Curves")
         ax_pr.set_xlabel("Recall")
         ax_pr.set_ylabel("Precision")
-        ax_pr.legend(fontsize=7, loc="lower left")
+        if ax_pr.get_legend_handles_labels()[0]:
+            ax_pr.legend(fontsize=7, loc="lower left")
 
     fig.suptitle("ROC and PR Curves", fontsize=16, fontweight="bold")
     fig.tight_layout()
