@@ -187,10 +187,10 @@ The preprocessing pipeline differs between the regression and classification tas
 \label{sec:split}
 
 We use a temporal split by case start time to prevent leakage, ensuring all
-prefixes from the same case remain in the same split. Cases starting before the 0.8
-quantile go to training while later cases go to testing, simulating an
+prefixes from the same case remain in the same split. Cases ending before the 0.8
+quantile go to training while cases starting later go to testing, simulating an
 operational setting where the model predicts on cases that start after the
-training period. \autoref{tab:split-stats} shows the resulting split
+training period. Cases that fall into neither set are dropped. \autoref{tab:split-stats} shows the resulting split
 statistics.
 
 \begin{table}[t]
