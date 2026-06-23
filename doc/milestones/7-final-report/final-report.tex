@@ -8,6 +8,7 @@
 \usepackage{graphicx}
 \usepackage{float}
 \usepackage{booktabs}
+\usepackage{siunitx}   % for decimal alignment of metrics
 \usepackage{tabularx}
 \usepackage{color}
 \usepackage[colorlinks=true, linkcolor=black, citecolor=black, urlcolor=blue]{hyperref}
@@ -128,24 +129,27 @@ activities performed by employees \cite{povalyaeva2017bpic}.
 
 The dataset is widely used in predictive process monitoring as it contains rich control-flow, temporal, and financial information along with substantial variation in case duration and outcome. \autoref{tab:data-stats} summarises the dataset.
 
-\begin{table}[H]
+\begin{table}[t]
     \centering
     \caption{BPI Challenge 2017 dataset statistics.}
     \label{tab:data-stats}
-    \begin{tabularx}{0.6\textwidth}{lX}
+    \begin{tabular}{lr}
         \toprule
         Statistic & Value \\
         \midrule
-        Cases & 31,509 \\
-        Events & 1,202,267 \\
-        Activities & 26 \\
-        Start date & 2016-01-01 \\
-        End date & 2017-02-01 \\
-        Mean case length (events) & 38.16 \\
-        Median case length (events) & 35 \\
+        Cases                        & 31{,}509 \\
+        Events                       & 1{,}202{,}267 \\
+        Activities                   & 26 \\
+        \midrule
+        Start date                   & 2016-01-01 \\
+        End date                     & 2017-02-01 \\
+        \midrule
+        Mean case length (events)    & 38.16 \\
+        Median case length (events)  & 35 \\
         \bottomrule
-    \end{tabularx}
+    \end{tabular}
 \end{table}
+
 
 \subsection{Prediction Tasks}
 This study evaluates model performance on two predictive process monitoring tasks: loan outcome classification and remaining-time regression. Cases terminate as approved, declined, or cancelled, corresponding to the
@@ -158,40 +162,25 @@ For outcome prediction, we formulate a binary classification task with approved 
 
 Raw XES event logs are first ingested, cleaned, and sorted in ascending order by timestamp before a sliding-window approach generates training instances. For each case, a window of length $k$ at time step $t$ consists of the most recent $k$ events ending at position $t$, with $k$ constrained by a minimum and maximum window length. Each resulting window is associated with the corresponding case label. Table~\ref{tab:preprocessing-summary} summarises the final dataset sizes for each prediction task along with the applied filtering steps and sliding-window configuration. 
 
-The preprocessing pipeline differs between the regression and classification tasks. For regression, no additional filtering is applied as sliding windows are generated with a minimum length of 3 and a maximum length of 100 events per case, producing truncated event histories that capture recent temporal context. For classification, additional constraints ensure label consistency and prevent information leakage: cases without any defined outcome events are removed (98 out of 31,509 cases), and windows containing an outcome event are excluded since their inclusion would leak information about the final case outcome into the input representation. The same minimum and maximum window lengths (3 to 100 events) are used as in the regression setup.
+The preprocessing pipeline differs between the regression and classification tasks. For regression, no additional filtering is applied as sliding windows are generated with a minimum length of 3 and a maximum length of 100 events per prefix, producing truncated event histories that capture recent temporal context. For classification, additional constraints ensure label consistency and prevent information leakage: cases without any defined outcome events are removed (98 out of 31,509 cases), and windows containing an outcome event are excluded since their inclusion would leak information about the final case outcome into the input representation. The same minimum and maximum window lengths (3 to 100 events) are used as in the regression setup.
 
-\begin{table}[H]
+\begin{table}[t]
     \centering
     \caption{Preprocessing summary per task.}
     \label{tab:preprocessing-summary}
-    \begin{tabularx}{\textwidth}{lX}
+    \begin{tabular}{lp{7cm}}
         \toprule
         Component & Value \\
         \midrule
-
-        Initial dataset &
-        31,509 cases / 1,202,267 events \\
-
-        Window type &
-        Sliding history window \\
-
-        Window length &
-        min = 3, max = 100 \\
-
-        Regression filtering &
-        None (all cases retained) \\
-
-        Classification filtering &
-        No-outcome cases removed (98 excluded), \\ & outcome prefixes removed \\
-
-        Regression final size &
-        31,509 cases \\
-
-        Classification final size &
-        31,411 cases \\
-
+        Initial dataset            & 31{,}509 cases / 1{,}202{,}267 events \\
+        Window type                & Sliding history window \\
+        Window length              & min $= 3$, max $= 100$ \\
+        Regression filtering       & None (all cases retained) \\
+        Classification filtering   & No-outcome cases removed (98 excluded), outcome prefixes removed \\
+        Regression final size      & 31{,}509 cases \\
+        Classification final size  & 31{,}411 cases \\
         \bottomrule
-    \end{tabularx}
+    \end{tabular}
 \end{table}
 
 \subsection{Temporal Train-Test Split}
@@ -204,28 +193,25 @@ operational setting where the model predicts on cases that start after the
 training period. \autoref{tab:split-stats} shows the resulting split
 statistics.
 
-\begin{table}[H]
+\begin{table}[t]
     \centering
     \caption{Temporal split statistics per prediction task.}
     \label{tab:split-stats}
-    \begin{tabularx}{\textwidth}{lXX}
+    \begin{tabular}{lrr}
         \toprule
         & Train & Test \\
         \midrule
-
         \multicolumn{3}{l}{\textbf{Classification task}} \\
-        Cases & \texttt{22,859} & \texttt{6,283} \\
-        Prefixes & \texttt{763,417} & \texttt{210,096} \\
-        Split timestamp & \multicolumn{2}{X}{\texttt{2016-10-18 11:39:41}} \\
-        
+        Cases           & 22{,}859  & 6{,}283 \\
+        Prefixes        & 763{,}417 & 210{,}096 \\
+        Split timestamp & \multicolumn{2}{c}{2016-10-18 11:39:41} \\
         \midrule
         \multicolumn{3}{l}{\textbf{Regression task}} \\
-        Cases & \texttt{22,895} & \texttt{6,302} \\
-        Prefixes & \texttt{827,614} & \texttt{228,455} \\
-        Split timestamp & \multicolumn{2}{X}{\texttt{2016-10-18 22:39:59}} \\
-
+        Cases           & 22{,}895  & 6{,}302 \\
+        Prefixes        & 827{,}614 & 228{,}455 \\
+        Split timestamp & \multicolumn{2}{c}{2016-10-18 22:39:59} \\
         \bottomrule
-    \end{tabularx}
+    \end{tabular}
 \end{table}
 
 % =============================================================================
@@ -240,22 +226,22 @@ listing the feature groups. Activity counts are encoded per event type
 while temporal features use the timestamp of the last event in the prefix, with all
 features computed in vectorised form for efficiency.
 
-\begin{table}[H]
+\begin{table}[t]
     \centering
     \caption{Log-based feature groups.}
     \label{tab:log-features}
-    \begin{tabularx}{\textwidth}{lXr}
+    \begin{tabular}{lp{5cm}r}
         \toprule
         Group & Features & Count \\
         \midrule
-        Activity counts & Count per event type per prefix & 26 \\
-        Temporal & Elapsed time, time since last event & 2 \\
-        Financial & Monthly cost, number of terms & 2 \\
-        Waiting states & Time in waiting activities & 4 \\
+        Activity counts & Count per event type per prefix      & 26 \\
+        Temporal        & Elapsed time, time since last event   & 2 \\
+        Financial       & Monthly cost, number of terms         & 2 \\
+        Waiting states  & Time in waiting activities            & 4 \\
         \midrule
-        Total & & 34 \\
+        \textbf{Total}  &                                       & \textbf{34} \\
         \bottomrule
-    \end{tabularx}
+    \end{tabular}
 \end{table}
 
 \subsection{Time-Series Features (Enhanced)}
@@ -267,21 +253,21 @@ raw value, an 8-hour trailing mean (\texttt{rolling\_mean\_8h}), and a
 trend (\texttt{trend\_8h} = current value minus value 8 hours earlier).
 \autoref{tab:ts-features} lists the time-series feature classes.
 
-\begin{table}[H]
+\begin{table}[t]
     \centering
     \caption{Time-series feature classes.}
     \label{tab:ts-features}
-    \begin{tabularx}{\textwidth}{lXrr}
+    \begin{tabular}{lp{5cm}rr}
         \toprule
         Class & Base signal & Base cols & Total \\
         \midrule
-        ActiveCaseCount & Cases active at prefix timestamp & 1 & 3 \\
-        FinancialVolume & Hourly sum/mean of withdrawal, offer, cost & 6 & 18 \\
-        DecisionRate & Ratio of accepted decisions per hour & 1 & 3 \\
+        ActiveCaseCount & Cases active at prefix timestamp            & 1 & 3 \\
+        FinancialVolume & Hourly sum/mean of withdrawal, offer, cost  & 6 & 18 \\
+        DecisionRate    & Ratio of accepted decisions per hour        & 1 & 3 \\
         \midrule
-        Total & & 8 & 24 \\
+        \textbf{Total}  &                                             & \textbf{8} & \textbf{24} \\
         \bottomrule
-    \end{tabularx}
+    \end{tabular}
 \end{table}
 
 \subsection{Feature Extraction Pipeline}
@@ -306,7 +292,7 @@ to each prefix at extraction time via vectorised timestamp lookup.
     \centering
     \caption{Class distribution for traces and prefixes (train/test split).}
     \label{tab:class-distribution}
-    \begin{tabularx}{0.65\textwidth}{l l l r c}
+    \begin{tabular}{l l l r c}
         \toprule
         Level & Split & & Count & Percentage (\%) \\
         \midrule
@@ -323,8 +309,8 @@ to each prefix at extraction time via vectorised timestamp lookup.
          \cmidrule(lr){2-5}
          & \multirow{2}{*}{Test} & approved & 141,171 & 67.2\% \\
          & & not approved & 68,925 & 32.8\% \\
-         \bottomrule
-    \end{tabularx}
+        \bottomrule
+    \end{tabular}
 \end{table}
 
 
@@ -336,7 +322,7 @@ The train and test distributions are highly consistent across all statistics, su
     \centering
     \caption{Distribution of remaining time (in hours) for train and test prefix sets.}
     \label{tab:remaining-time-distribution}
-    \begin{tabular}{l r r}
+    \begin{tabular}{lrr}
         \toprule
         Statistic & Train & Test \\
         \midrule
@@ -367,7 +353,7 @@ high-dimensional, sparse, and heterogeneous event-based feature representations.
     \centering
     \caption{Models and hyperparameter search spaces.}
     \label{tab:models}
-    \begin{tabularx}{\textwidth}{llX}
+    \begin{tabular}{llp{4.5cm}}
         \toprule
         Model & Task & Key hyperparameters \\
         \midrule
@@ -381,7 +367,7 @@ high-dimensional, sparse, and heterogeneous event-based feature representations.
             \texttt{learning\_rate}: 0.01--0.3\newline
             \texttt{max\_iter}: 100--300 \\
         \bottomrule
-    \end{tabularx}
+    \end{tabular}
 \end{table}
 
 Hyperparameter optimisation is performed using \texttt{RandomizedSearchCV}
@@ -395,7 +381,7 @@ held-out test set.
     \centering
     \caption{Hyperparameter optimisation configuration.}
     \label{tab:hpo-config}
-    \begin{tabularx}{0.7\textwidth}{lX}
+    \begin{tabular}{ll}
         \toprule
         Parameter & Value \\
         \midrule
@@ -404,7 +390,7 @@ held-out test set.
         Search iterations & 10 \\
         Search sample size & All training prefixes \\
         \bottomrule
-    \end{tabularx}
+    \end{tabular}
 \end{table}
 
 \subsection{Evaluation Protocol and Comparison Design}
@@ -439,7 +425,7 @@ by 0.019 in MCC.
     \centering
     \caption{Classification model comparison (log+TS, 58 features, full data).}
     \label{tab:classification-results}
-    \begin{tabularx}{\textwidth}{lccc}
+    \begin{tabular}{lccc}
         \toprule
         Model & F1-weighted & ROC AUC & MCC \\
         \midrule
@@ -448,7 +434,7 @@ by 0.019 in MCC.
         Logistic Regression  & 0.6297 & 0.6270 & 0.1827 \\
         Dummy (most frequent)& 0.5401 & 0.5000 & 0.0000 \\
         \bottomrule
-    \end{tabularx}
+    \end{tabular}
 \end{table}
 
 \autoref{fig:classification-prefix} shows F1-weighted across prefix lengths,
@@ -475,14 +461,14 @@ negligible.
     \centering
     \caption{Classification TS impact (HGB, full data).}
     \label{tab:classification-ts}
-    \begin{tabularx}{\textwidth}{lccc}
+    \begin{tabular}{lccc}
         \toprule
         Configuration & Features & F1-weighted & ROC AUC \\
         \midrule
         HGB log-only (34) & 34 & 0.6584 & 0.6597 \\
         HGB log+TS (58)   & 58 & 0.6594 & 0.6557 \\
         \bottomrule
-    \end{tabularx}
+    \end{tabular}
 \end{table}
 
 \paragraph{Feature Importance}
@@ -494,7 +480,7 @@ To interpret model predictions, feature importance was estimated using permutati
     \centering
     \caption{Top 10 features by permutation importance (HGB log-only).}
     \label{tab:classification-feature-importance}
-    \begin{tabularx}{\textwidth}{lr}
+    \begin{tabular}{lr}
         \toprule
         Feature & Importance \\
         \midrule
@@ -509,7 +495,7 @@ To interpret model predictions, feature importance was estimated using permutati
         count\_W\_Call incomplete files       & 0.0043 \\
         time\_since\_last\_event\_hours       & 0.0023 \\
         \bottomrule
-    \end{tabularx}
+    \end{tabular}
 \end{table}
 
 \autoref{fig:classification-feature-importance} visualises the
@@ -553,7 +539,7 @@ RF explains 38\% of the variance in remaining time.
     \centering
     \caption{Regression model comparison (log+TS, max\_length=100, full data).}
     \label{tab:regression-results}
-    \begin{tabularx}{\textwidth}{lcc}
+    \begin{tabular}{lcc}
         \toprule
         Model & RMSE (hours) & $R^2$ \\
         \midrule
@@ -562,7 +548,7 @@ RF explains 38\% of the variance in remaining time.
         Ridge                & 240.87  & 0.347 \\
         Dummy (mean)         & 298.13  & 0.000 \\
         \bottomrule
-    \end{tabularx}
+    \end{tabular}
 \end{table}
 
 \autoref{fig:regression-prefix} shows RMSE across prefix lengths as it
@@ -587,14 +573,14 @@ prefix lengths.
     \centering
     \caption{Regression TS impact (RF, max\_length=100, full data).}
     \label{tab:regression-ts}
-    \begin{tabularx}{\textwidth}{lrr}
+    \begin{tabular}{lrr}
         \toprule
         Configuration & Features & RMSE (hours) \\
         \midrule
         RF log-only & 34 & \textbf{233.14} \\
         RF log+TS   & 58 & 234.56 \\
         \bottomrule
-    \end{tabularx}
+    \end{tabular}
 \end{table}
 
 \paragraph{Full-Length vs.\ Maximum-Length Prefixes}
@@ -614,7 +600,7 @@ Top is \texttt{count\_W\_Validate application} (0.0618), then
     \centering
     \caption{Top 10 features by permutation importance (RF log-only).}
     \label{tab:regression-feature-importance}
-    \begin{tabularx}{\textwidth}{lr}
+    \begin{tabular}{lr}
         \toprule
         Feature & Importance \\
         \midrule
@@ -629,7 +615,7 @@ Top is \texttt{count\_W\_Validate application} (0.0618), then
         count\_O\_Accepted                  & 0.0068 \\
         num\_terms                          & 0.0048 \\
         \bottomrule
-    \end{tabularx}
+    \end{tabular}
 \end{table}
 
 \subsection{Overfitting Analysis}
@@ -642,7 +628,7 @@ Top is \texttt{count\_W\_Validate application} (0.0618), then
     \centering
     \caption{Train-test performance gap.}
     \label{tab:overfitting}
-    \begin{tabularx}{\textwidth}{llrrr}
+    \begin{tabular}{llrrr}
         \toprule
         Task & Model & Train & Test & Gap \\
         \midrule
@@ -650,7 +636,7 @@ Top is \texttt{count\_W\_Validate application} (0.0618), then
         % Classification & RF (f1-weighted)   & 0.6810 & 0.6510 & $-$0.0300 \\
         Regression     & RF log-only (RMSE) & 248.08 & 233.14 & $-$14.94 \\
         \bottomrule
-    \end{tabularx}
+    \end{tabular}
 \end{table}
 
 \begin{figure}[H]
@@ -748,8 +734,8 @@ with \texttt{poetry run pytest -m "not integration"}.
 For classification, the hourly-resampled time-series features with 8-hour
 rolling windows added no meaningful improvement (F1-weighted $+0.1\%$). For
 regression, they consistently degraded performance (RMSE $+1.45$), with the
-log-only model outperforming all log+TS variants. No single cause is decisive;
-the most likely explanation is a combination of the factors below, which
+log-only model outperforming all log+TS variants. No single cause is decisive.
+The most likely explanation is a combination of the factors below, which
 concern the nature of the signals, how they were extracted and aligned, how
 they interact with the chronological split, and how they affect the models.
 
@@ -783,7 +769,7 @@ information itself.
 and \texttt{FinancialVolumeFeature} and \texttt{DecisionRateFeature} are
 likewise global hourly aggregates. The contention that plausibly affects a
 given case is the load on the specific resource or queue handling \emph{that}
-case; a global, log-wide count averages this away, so even a genuine workload
+case. A global, log-wide count averages this away, so even a genuine workload
 effect would be largely invisible at the resolution we measure it.
 
 \paragraph{Proxy effect: the log features already encode load.}
@@ -844,7 +830,7 @@ improvement.
 Taken together, these factors make the answer on this log, with this
 operationalisation, a clear no. The result is specific to the chosen signals,
 their hourly resolution and short window, the backward alignment, and the
-non-stationarity introduced by the chronological split; it is not evidence that
+non-stationarity introduced by the chronological split. It is not evidence that
 process workload is irrelevant to outcome or remaining time in principle.
 Stationary or detrended workload features, finer resolution, seasonal lags, and
 per-resource load remain plausible routes that this study did not test.
@@ -906,7 +892,7 @@ distributions. We make no claim of external validity beyond this log.
 \paragraph{Model scope.}
 We evaluate linear baselines and two tree ensembles (Random Forest,
 HistGradientBoosting). Axis-aligned tree splits consume each time-series column
-independently and cannot model temporal dependence across lags; sequence models
+independently and cannot model temporal dependence across lags. Sequence models
 (LSTMs, temporal CNNs, transformers) integrate continuous time-series
 information differently and might extract signal the trees cannot. The negative
 time-series result is therefore specific to this model class.
@@ -915,7 +901,7 @@ time-series result is therefore specific to this model class.
 Hyperparameter optimisation used \texttt{RandomizedSearchCV} with a small budget
 (10 iterations, 3-fold CV), and the families were not tuned to equal depth.
 Reported differences between model families may partly reflect search budget
-rather than intrinsic capability; on a low-$R^2$, elapsed-time-dominated target
+rather than intrinsic capability. On a low-$R^2$, elapsed-time-dominated target
 the families largely converge, so feature signal, not model choice, is the
 binding constraint.
 
@@ -923,13 +909,13 @@ binding constraint.
 A single deterministic temporal split was used. A rolling-origin / time-series
 cross-validation would give a more robust estimate and reveal variance across
 calendar periods, which one split cannot. Hyperparameters and feature sets were
-fixed rather than selected on a dedicated validation split; this avoids tuning
+fixed rather than selected on a dedicated validation split. This avoids tuning
 toward the test set, but means feature selection was never exercised.
 
 \paragraph{Metrics.}
 The classifiers reach MCC $< 0.25$ throughout, so the task is hard and margins
 between configurations are small. F1-weighted, the primary ranking metric, is
-sensitive to the 67:33 prefix-level prevalence and rewards the majority class;
+sensitive to the 67:33 prefix-level prevalence and rewards the majority class.
 ROC~AUC and MCC are reported alongside it to compensate.
 
 \paragraph{Feature attribution.}
@@ -1003,7 +989,7 @@ and the backward-looking alignment of the workload signals are potentially contr
 factors. The practical implication is that, on this log and with this
 operationalisation, practitioners can prioritise log-based features,
 particularly counts of gate activities, before investing in time-series feature
-engineering; this is not evidence that workload is irrelevant in principle, only
+engineering. This is not evidence that workload is irrelevant in principle, only
 that raw, non-stationary workload signals did not help here. The pipeline and
 all experiments are open-source and reproducible from a single configuration.
 
@@ -1038,7 +1024,7 @@ explanation.
 \paragraph{Requirement evolution.}
 The high-level requirements remained stable, but the emphasis of the deliverable
 shifted. The project was framed as demonstrating a benefit from time-series
-features; as evidence accumulated, it became an analysis of \emph{why} that
+features. As evidence accumulated, it became an analysis of \emph{why} that
 benefit failed to materialise. Detailed sub-requirements were managed as GitHub
 issues linked to their parent requirement rather than by editing the
 requirements document, which kept the specification stable while still recording
@@ -1066,11 +1052,11 @@ The planned role redistribution between sprints was largely ignored by the team.
 
 \paragraph{What we would do differently.}
 We would gate every candidate time-series signal on an upfront validity and
-drift check before modelling; add recent and seasonal lags (t-1h, t-24h, t-168h)
+drift check before modelling. We would add recent and seasonal lags (t-1h, t-24h, t-168h)
 and detrended workload signals given the strong daily/weekly priors and the
-observed non-stationarity; perform feature selection on a dedicated validation
-split rather than the final test set; profile runtime from the start rather than
-at the end; and add a smoke check that every configured feature actually fires
+observed non-stationarity. We would perform feature selection on a dedicated validation
+split rather than the final test set. We would profile runtime from the start rather than
+at the end. We would add a smoke check that every configured feature actually fires
 on the real log, which would have caught the activity-matching bug immediately.
 
 \bibliography{refs}
@@ -1123,7 +1109,7 @@ poetry run pytest
 This appendix specifies every feature, its computation, unit, and edge-case
 behaviour. All features are extracted per prefix and emitted as
 \texttt{float32}. A prefix is the ordered array of events up to a cutoff
-position; the ``last event'' below always refers to the final event of the
+position. The ``last event'' below always refers to the final event of the
 prefix.
 
 \subsection{Log-Based Features (34 features)}
@@ -1165,10 +1151,10 @@ feature defaults to~0. \texttt{monthly\_cost} is a currency amount and
 Features capturing whether and how long the case has been waiting at the cutoff:
 \begin{itemize}
     \item \texttt{hours\_since\_offer\_sent}: hours between the last occurrence
-          of an offer-sent event and the prefix cutoff; 0 if none has occurred.
+          of an offer-sent event and the prefix cutoff. 0 if none has occurred.
           The matcher keys on the literal activity label \texttt{O\_Sent}.
     \item \texttt{hours\_since\_incomplete}: hours since the last
-          \texttt{A\_Incomplete} event; 0 if none has occurred.
+          \texttt{A\_Incomplete} event. 0 if none has occurred.
     \item \texttt{is\_waiting\_for\_customer}: binary flag, 1 if the last
           activity is one of \texttt{O\_Sent}, \texttt{A\_Complete}, or
           \texttt{A\_Incomplete} (states where the bank awaits the customer),
@@ -1179,7 +1165,7 @@ Features capturing whether and how long the case has been waiting at the cutoff:
           (states where the customer awaits the bank), else~0.
 \end{itemize}
 The two duration features and the customer-waiting flag match the exact label
-\texttt{O\_Sent}; in the BPIC~2017 log the offer-sent activity is recorded as
+\texttt{O\_Sent}. In the BPIC~2017 log the offer-sent activity is recorded as
 \texttt{O\_Sent (mail and online)} / \texttt{O\_Sent (online only)}, so these
 components do not fire on the real data (cf.\ \autoref{sec:evaluation}), leaving
 the waiting-state block largely inert and consistent with its absence from the
@@ -1211,7 +1197,7 @@ base signal expands into three columns, giving 24 features from 8 base signals.
     \item \textbf{Alignment.} At extraction each prefix is matched to the most
           recent hourly bucket at or before its last-event timestamp via a
           backward as-of lookup (\texttt{searchsorted}/\texttt{merge\_asof},
-          \texttt{direction="backward"}); prefixes earlier than the first
+          \texttt{direction="backward"}). Prefixes earlier than the first
           bucket take the first bucket. Alignment is therefore strictly
           backward-looking, which is leakage-safe but assigns each prefix the
           \emph{past} workload value rather than the load the case will
@@ -1237,8 +1223,8 @@ base signal expands into three columns, giving 24 features from 8 base signals.
           \texttt{mean\_withdrawal\_amount}, \texttt{total\_offer\_amount},
           \texttt{mean\_offer\_amount}, \texttt{total\_monthly\_cost},
           \texttt{mean\_monthly\_cost}). Each base column expands to its triplet,
-          giving 18 features. Amounts are in currency units; hours with no
-          financial events contribute~0.
+           giving 18 features. Amounts are in currency units. Hours with no
+           financial events contribute~0.
     \item \textbf{DecisionRateFeature (1 base, 3 total).}
           Base signal \texttt{accept\_ratio}: per hour, the number of accepted
           decisions (\texttt{A\_Accepted}) divided by the total number of terminal

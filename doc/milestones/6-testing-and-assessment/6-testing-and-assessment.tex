@@ -169,19 +169,14 @@ The main challenge was the negative result itself: the time-series features adde
 value for classification and degraded regression. Explaining this outcome required
 deeper diagnostic analysis than initially scoped. The key insight was concept drift:
 the time-series features are global process-state signals whose distributions shift
-between train and test on the chronological split, so they fail to generalise. We also
-investigated proxy effects, extraction-template limitations, and the curse of
-dimensionality. The discovery of the \texttt{WaitingStateFeatures} activity-matching
-bug, where matching on \texttt{O\_Sent} silently never fired because the real event
-names include parenthetical suffixes, occurred during this phase and needed to be
-documented as a limitation. Right-censoring at the end of the log surfaced only during
-long-prefix analysis. All findings went into the evaluation discussion.
+between train and test on the chronological split, so they fail to generalise.
 
 \subsection{Task Tracking}
-We managed all work through GitHub Issues with linked pull requests. The requirements
-tracking system kept detailed sub-requirements as GitHub issues linked
-to parent requirements instead of editing the requirements document, which worked well
-for scope changes like adding HGB as a model family.
+We managed all work through GitHub Issues with linked pull requests. Smaller changes
+were merged directly to dev, while larger features followed the standard review
+process. The requirements tracking system kept detailed sub-requirements as GitHub
+issues linked to parent requirements instead of editing the requirements document,
+which worked well for scope changes like adding HGB as a model family.
 
 \section{Moving Forward}
 
