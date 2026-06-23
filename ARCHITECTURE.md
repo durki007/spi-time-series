@@ -2,11 +2,11 @@
 
 ## Overview
 
-Predictive process monitoring on the BPIC 2017 loan application log. The
-pipeline supports **regression** (remaining time) and **classification**
-(approved vs. not-approved outcome). A four-stage pipeline (`preprocess`
-→ `extract` → `train` → `evaluate`) with joblib checkpointing skips
-unchanged stages on re-runs.
+Predictive process monitoring on the BPI Challenge 2017 loan application log.
+The pipeline supports **regression** (remaining time in hours) and
+**classification** (approved vs. not-approved outcome). A four-stage pipeline
+(`preprocess` → `extract` → `train` → `evaluate`) with joblib checkpointing
+skips unchanged stages on re-runs.
 
 ---
 
@@ -14,41 +14,51 @@ unchanged stages on re-runs.
 
 ```
 spi-time-series/
-├── configs/                             # YAML experiment definitions
+├── experiments/                        # YAML experiment definitions
+│   ├── classification/
+│   │   ├── classification_compare.yaml
+│   │   ├── classification_hgb_log.yaml
+│   │   └── classification_hgb_time_series.yaml
+│   └── regression/
+│       ├── regression_compare.yaml
+│       ├── regression_compare_full.yaml
+│       ├── regression_rf_log.yaml
+│       └── regression_rf_time_series.yaml
 ├── src/spi_time_series/
-│   ├── main.py                          # CLI entry point
-│   ├── config/                          # YAML → RunConfig, estimator factory
-│   │   ├── schema.py                    # Pydantic models (RunConfig, ModelConfig, …)
-│   │   └── loader.py                    # load_config, build_estimator
-│   ├── data/                            # BPIC 2017 dataset, datatypes
-│   │   ├── dataset.py                   # Dataset (downloads & caches)
-│   │   ├── schemas.py                   # RawData, TraceSample, FeatureSet, …
-│   │   ├── types.py                     # Callable type aliases
-│   │   └── constants.py                 # EVENT_NAMES, OUTCOME_EVENTS
-│   ├── preprocessing/                   # Cleaning, splitting, windowing
-│   │   ├── preprocess.py                # clean_event_log, split_data
-│   │   └── window_generators.py         # sliding/outcome window factories
-│   ├── features/                        # PrefixFeature implementations
-│   │   ├── extraction.py                # extract_features_builder, generate_feature_matrix
-│   │   ├── log_based_features.py        # BasicControlFlowFeatures, OfferFeatures, …
-│   │   ├── time_series_features.py      # ActiveCaseCountFeature
-│   │   └── targets.py                   # remaining_time/outcome/binary targets
-│   ├── models/                          # Training & hyperparameter search
-│   │   └── trainer.py                   # search_hyperparams (RandomizedSearchCV), train
-│   ├── evaluation/                      # Metrics, plots, SHAP, comparison
-│   │   ├── metrics.py                   # evaluate, compare_models, detect_task
-│   │   ├── plots.py                     # metric_vs_prefix, error_dist, roc/pr curves
-│   │   ├── feature_importance.py        # Permutation importance
-│   │   ├── shap_explainability.py       # SHAP summary + waterfall plots
-│   │   ├── evaluate_feature_impact.py   # Log-only vs. log+ts comparison CLI
-│   │   └── prototype.py                 # Prediction demo (checkpoint → predict)
-│   └── pipeline/                        # Orchestrator
-│       ├── pipeline.py                  # Pipeline dataclass, fit/evaluate
-│       ├── builder.py                   # PipelineBuilder (fluent API)
-│       └── state.py                     # PipelineState (checkpoint schema)
-├── tests/                               # Pytest (unit + integration)
-├── notebooks/                           # EDA and analysis (not required for pipeline)
-└── results/                             # Experiment outputs (gitignored)
+│   ├── main.py                         # CLI entry point
+│   ├── config/                         # YAML → RunConfig, estimator factory
+│   │   ├── schema.py                   # Pydantic models (RunConfig, ModelConfig, …)
+│   │   └── loader.py                   # load_config, build_estimator
+│   ├── data/                           # BPIC 2017 dataset, datatypes
+│   │   ├── dataset.py                  # Dataset (downloads & caches)
+│   │   ├── schemas.py                  # RawData, TraceSample, FeatureSet, …
+│   │   ├── types.py                    # Callable type aliases
+│   │   └── constants.py                # EVENT_NAMES, OUTCOME_EVENTS
+│   ├── preprocessing/                  # Cleaning, splitting, windowing
+│   │   ├── preprocess.py               # clean_event_log, split_data
+│   │   └── window_generators.py        # sliding / outcome window factories
+│   ├── features/                       # PrefixFeature implementations
+│   │   ├── extraction.py               # extract_features_builder, generate_feature_matrix
+│   │   ├── log_based_features.py       # ActivityCount, Temporal, WaitingState, Financial
+│   │   ├── time_series_features.py     # ActiveCaseCount, FinancialVolume, DecisionRate
+│   │   └── targets.py                  # remaining_time / outcome / binary targets
+│   ├── models/                         # Training & hyperparameter search
+│   │   └── trainer.py                  # search_hyperparams (RandomizedSearchCV), train
+│   ├── evaluation/                     # Metrics, plots, SHAP, comparison
+│   │   ├── metrics.py                  # evaluate, compare_models, detect_task
+│   │   ├── plots.py                    # metric_vs_prefix, error_dist, roc/pr curves
+│   │   ├── feature_importance.py       # Permutation importance
+│   │   ├── shap_explainability.py      # SHAP summary + waterfall plots
+│   │   ├── evaluate_feature_impact.py  # Log-only vs. log+ts comparison CLI
+│   │   └── prototype.py                # Prediction demo (checkpoint → predict)
+│   └── pipeline/                       # Orchestrator
+│       ├── pipeline.py                 # Pipeline dataclass, fit/evaluate
+│       ├── builder.py                  # PipelineBuilder (fluent API)
+│       └── state.py                    # PipelineState (checkpoint schema)
+├── tests/                              # Pytest (133 unit + integration tests)
+├── doc/                                # Sprint and final reports
+├── notebooks/                          # EDA and analysis (not required for pipeline)
+└── results/                            # Experiment outputs (gitignored)
 ```
 
 ---
@@ -101,34 +111,44 @@ spi-time-series/
 | `ModelArtifact` | Trained sklearn Pipelines | `data/schemas.py:54` |
 | `EvaluationReport` | Per-model, per-prefix metrics | `data/schemas.py:63` |
 | `PipelineState` | Serialisable checkpoint (joblib) | `pipeline/state.py:12` |
-| `PrefixFeature` | Protocol: feature(prefix, col_idx) → vec | `data/schemas.py:175` |
 | `TargetGenerator` | Protocol: label from trace window | `data/schemas.py:165` |
+
+---
+
+## Feature Architecture
+
+**34 log-based features:** ActivityCountFeatures (26), TemporalFeatures (2),
+WaitingStateFeatures (4), FinancialFeatures (2).
+
+**24 time-series features** (3 per base column: raw + `window_mean_8h` +
+`trend_8h`): ActiveCaseCountFeature (1 base), FinancialVolumeFeature
+(6 base: mean/total withdrawal, offer, monthly cost),
+DecisionRateFeature (1 base: accept ratio).
+
+Time-series features are precomputed once during `fit()` and aligned to each
+prefix via backward-looking timestamp lookup (`merge_asof`, `direction="backward"`).
 
 ---
 
 ## CLI Usage
 
 ```bash
-# Regression
-python -m spi_time_series.main configs/regression.yaml --output-dir results/
+# Classification model comparison (4 models, log+TS, 58 features)
+python -m spi_time_series.main experiments/classification/classification_compare.yaml \
+    -o results/classification/classification_compare/
 
-# Classification
-python -m spi_time_series.main configs/classification.yaml --output-dir results/
+# Regression RF log-only (34 features)
+python -m spi_time_series.main experiments/regression/regression_rf_log.yaml \
+    -o results/regression/regression_rf_log/
 
-# Fast dev mode (few cases)
-python -m spi_time_series.main configs/classification_dev.yaml --output-dir results/
-
-# With overrides
-python -m spi_time_series.main configs/classification.yaml \
-    --override search.n_iter=5 --override data.split_quantile=0.7
-
-# Force re-run
-python -m spi_time_series.main configs/classification.yaml --force
+# Force re-run (clear cache)
+python -m spi_time_series.main experiments/classification/classification_compare.yaml \
+    -o results/classification/classification_compare/ --force
 
 # Prediction demo (load checkpoint → predict)
 python -m spi_time_series.evaluation.prototype \
-    --config configs/classification.yaml \
-    --checkpoint results/classification/checkpoint.joblib \
+    --config experiments/classification/classification_compare.yaml \
+    --checkpoint results/classification/classification_compare/checkpoint.joblib \
     --prefix-csv new_prefix.csv
 ```
 
@@ -136,7 +156,7 @@ python -m spi_time_series.evaluation.prototype \
 
 ## Config Structure
 
-Top-level keys in `configs/*.yaml`:
+Top-level keys in `experiments/{task}/*.yaml`:
 
 | Key | Role |
 |-----|------|
@@ -148,15 +168,7 @@ Top-level keys in `configs/*.yaml`:
 | `pca_config` | PCA: `active`, `keep_variability` |
 | `models` | Named estimators: `model_type`, `params`, `param_grid` |
 
----
-
-## How to Add a Feature
-
-1. Implement `PrefixFeature` protocol (`name()`, `fit()`, `__call__`, `feature_names`) —
-   see `log_based_features.py` or `time_series_features.py` for examples
-2. Add the feature name to `_FEATURES` allowlist in `config/schema.py:50-56`
-3. Wire the instantiation in `_build_default_feature_extractor()` in `main.py`
-4. Optionally add `feature_kwargs` support in the extract stage
+Model types validated against an allowlist in `config/schema.py:24-31`.
 
 ---
 
@@ -164,9 +176,10 @@ Top-level keys in `configs/*.yaml`:
 
 | Decision | Rationale |
 |----------|-----------|
-| **Temporal split** by case start/completion time | Prevents leakage — all prefixes of one case stay together |
+| **Temporal split** by case start time | Prevents leakage — all prefixes of one case stay together |
 | **SHAP as Reporter** (not Evaluator) | Avoids serializing large SHAP arrays into checkpoint; plots regenerated on re-eval |
-| **TreeExplainer on raw estimator** | `shap.TreeExplainer` needs the unwrapped RF, not the sklearn Pipeline wrapper |
-| **class_weight="balanced"** | Handles class imbalance during training without needing balanced_accuracy in HPO scoring |
+| **TreeExplainer on raw estimator** | `shap.TreeExplainer` needs the unwrapped RF/HGB, not the sklearn Pipeline wrapper |
+| **class_weight="balanced"** | Handles class imbalance during training |
+| **Stage-level joblib checkpointing** | Cache keys hash config sections; re-running unchanged stages skips them |
 | **PipelineState stores fitted features** | Enables the prototype to extract features from genuinely new prefix data |
-| **Joblib checkpointing** | Cache keys hash config sections; re-running unchanged stages skips them |
+| **Time-series alignment via merge_asof** | Leakage-safe backward lookup; precomputed once, aligned per prefix |

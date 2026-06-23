@@ -18,7 +18,26 @@
 \usepackage{amsmath}
 \usepackage{multirow}
 \usepackage[htt]{hyphenat} 
+\usepackage{listings}
 
+\lstdefinestyle{verbwrap}{
+  basicstyle=\ttfamily\small,   % monospace, verbatim-like
+  breaklines=true,              % wrap long lines
+  breakatwhitespace=false,      % CRUCIAL: break anywhere, even mid-token
+  breakindent=0pt,              % no indent on wrapped continuation
+  postbreak=\mbox{\textcolor{gray}{$\hookrightarrow$}\space}, % continuation marker
+  columns=fixed,                % keep the monospace grid (true verbatim look)
+  keepspaces=true,              % preserve runs of spaces
+  showstringspaces=false,
+  upquote=true,                 % straight quotes, not curly
+  literate={`}{{`}}1,           % keep backtick literal
+  frame=none,                   % no box; use single if you want a rule
+  xleftmargin=0pt,
+  numbers=none,
+}
+
+% make it the default for all lstlistings:
+\lstset{style=verbwrap}
 
 \begin{document}
 
@@ -343,7 +362,7 @@ covering linear baselines and non-linear ensemble methods. The selected models
 are widely used in predictive process monitoring due to their ability to handle
 high-dimensional, sparse, and heterogeneous event-based feature representations.
 
-% TOOD [RL] Are thee correct? Final runconfigs don't do parameter search? 
+
 \begin{table}[H]
     \centering
     \caption{Models and hyperparameter search spaces.}
@@ -409,8 +428,7 @@ achieves the lowest RMSE for regression (233.14).
 \subsection{Outcome Prediction}
 \label{sec:results-outcome}
 
-% TODO [RL] Waht is the featureset here? Full feature set? Are we using time series features here?
-% TODO [RL] How are these scores computed? Over all prefixes? per prefix then aggregated. Explain how these were computed explicitly.
+
 HGB outperforms all alternatives for outcome
 classification, achieving the highest scores across all three primary
 metrics (\autoref{tab:classification-results}). HGB leads Random Forest
@@ -585,7 +603,7 @@ configurations produce nearly identical results at 234.43 vs.\ 234.37 RMSE,
 with a difference of 0.04\% indicating that longer histories do not help.
 
 \paragraph{Feature Importance}
-Fetaure imprtance is computed the same way as for classification (see \autoref{sec:results-outcome}).
+Feature Importance is computed the same way as for classification (see \autoref{sec:results-outcome}).
 \autoref{tab:regression-feature-importance} lists the top 10 features.
 Top is \texttt{count\_W\_Validate application} (0.0618), then
 \texttt{count\_W\_Call after offers} (0.0323) and
@@ -638,7 +656,7 @@ Top is \texttt{count\_W\_Validate application} (0.0618), then
 \begin{figure}[H]
     \centering
     \includegraphics[width=\textwidth]{figures/train_vs_test.png}
-    \caption{Train vs.\ Test performance (all models log-based + time-series) for classifcation.}
+    \caption{Train vs.\ Test performance (all models log-based + time-series) for classification.}
     \label{fig:train-vs-test}
 \end{figure}
 
@@ -1039,12 +1057,12 @@ converged on a low-$R^2$, elapsed-time-dominated target, so further model tuning
 would not have moved the result.
 
 \paragraph{Organisational learnings.}
-The agile sprint structure with GitHub issues and clear module ownership worked
+The agile sprint structure with GitHub issues worked
 well for a three-person team and gave a usable audit trail from requirement to
 code to report. The main friction was integration timing: feature, modelling,
-and evaluation work proceeded somewhat in parallel, so some inconsistencies ---
-including the \texttt{O\_Sent} activity-matching bug that silenced the
-waiting-state features --- surfaced only when the full comparison was assembled.
+and evaluation work proceeded somewhat in parallel, so some inconsistencies surfaced only when the full comparison was assembled.
+
+The planned role redistribution between sprints was largely ignored by the team. With only three members and a small, manageable project, modular specialisation proved to be an unnecessary overhead. Our workflow required cross-module knowledge to apply even small changes or integrate new functionality. Furthermore, given our university schedules, we often worked asymmetrically, meaning everyone needed to be able to continue and review work done by others.
 
 \paragraph{What we would do differently.}
 We would gate every candidate time-series signal on an upfront validity and
@@ -1069,29 +1087,27 @@ Challenge 2017 log~\cite{bpic2017} is downloaded automatically on first run.
 \paragraph{Prerequisites.}
 Python~3.12 and Poetry. Install dependencies with:
 \begin{verbatim}
-poetry install                # runtime dependencies
-poetry install --with test    # adds pytest for the test suite
+poetry install                
+poetry install --with test    
 \end{verbatim}
 
 \paragraph{Running the experiments.}
 \begin{verbatim}
-# Train and evaluate all models with log-only and time-series features for classification
+
 poetry run python -m spi_time_series.main \
     experiments/classification/classification_compare.yaml
     
-# Train and evaluate all models with log-only and time-series features for regression
 poetry run python -m spi_time_series.main \
-    experiments/classification/regression_compare.yaml
+     experiments/regression/regression_compare.yaml
 
-# Train and evaluate Random Forest model with just log based features for regression
 poetry run python -m spi_time_series.main \
     experiments/regression/regression_rf_log.yaml
 
-# Train and evaluate HGB model with just log based features for classification
 poetry run python -m spi_time_series.main \
     experiments/classification/classification_hgb_log.yaml
 
 \end{verbatim}
+
 Each run writes metrics and figures (including \texttt{roc\_pr\_curves.png}) and
 saves the trained pipeline state to \texttt{checkpoint.joblib} in the output
 directory.
