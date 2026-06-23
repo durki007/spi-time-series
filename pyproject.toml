@@ -1,9 +1,12 @@
 [project]
 name = "spi-time-series"
 version = "0.1.0"
-description = ""
+description = "This is a university project, aiming to investigate the impact of timeseries features in predictive process monitoring. We implement a predictive proces mining pipeline that can be configured to train and evaluate different models with log-based and timeseries features. It was build modular so new models, features and evaluations can be easily added to extend the pipelines functionality."
 authors = [
-    {name = "Your Name",email = "you@example.com"}
+    {name = "Durkalec, Michal",email = "michal.durkalec@rwth-aachen.de"},
+    {name = "Sakkas, Konstantinos",email = "konstantinos.sakkas@rwth-aachen.de"},
+    {name = "Lezovic, Roman",email = "roman.lezovic@rwth-aachen.de"},
+    
 ]
 readme = "README.md"
 requires-python = ">=3.12"
