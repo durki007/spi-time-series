@@ -39,23 +39,23 @@
 % =============================================================================
 \begin{abstract}
 
-Predictive process monitoring uses historical event log data to predict
-outcomes and remaining times of running process instances. Standard approaches
-derive features from the event log alone, ignoring temporal resource-load
-variation. This project tests whether aligned time-series features (active-case counts
-with rolling-window statistics) improve prediction quality. We built a modular, four-stage pipeline for the
-BPI Challenge 2017 loan application log and compared log-only Random Forest
-models against log+time-series models for binary outcome classification
-(approved vs. not-approved) and remaining-time regression. Time-series
-features raised classification F1-weighted by 2.2\% and improved early-prefix
-F1-weighted by 30\%
-at length~3. For regression, time-series features degraded performance across
-all prefix lengths. We analyse when time-series information helps and why it fails for
-regression. The
-pipeline is open-source and fully reproducible.
+    Predictive process monitoring uses historical event log data to predict
+    outcomes and remaining times of running process instances. Standard approaches
+    derive features from the event log alone, ignoring temporal resource-load
+    variation. This project tests whether aligned time-series features (active-case counts
+    with rolling-window statistics) improve prediction quality. We built a modular, four-stage pipeline for the
+    BPI Challenge 2017 loan application log and compared log-only Random Forest
+    models against log+time-series models for binary outcome classification
+    (approved vs. not-approved) and remaining-time regression. Time-series
+    features added no meaningful improvement for classification
+    (F1-weighted +0.1\%). For regression, time-series features degraded performance
+    (RMSE +1.45). We
+    analyse why time-series information fails to improve either task and
+    discuss implications for feature engineering in predictive process monitoring.
+    The pipeline is open-source and fully reproducible.
 
-\keywords{Predictive Process Monitoring \and Process Mining \and Time-Series Features
-    \and Random Forest \and Model Evaluation \and Explainability}
+    \keywords{Predictive Process Monitoring \and Process Mining \and Time-Series Features
+        \and Random Forest \and Model Evaluation \and Explainability}
 \end{abstract}
 
 % =============================================================================
@@ -75,12 +75,12 @@ outcomes and processing times, yet log-based features do not capture
 this workload variation over time.
 
 This project answers: \emph{do aligned time-series workload features
-improve predictive performance for outcome and remaining-time tasks compared
-to event-log features alone?} We built a modular pipeline that extracts
+    improve predictive performance for outcome and remaining-time tasks compared
+    to event-log features alone?} We built a modular pipeline that extracts
 log-based features, computes time-series features, trains Random Forest models,
 and evaluates them against baselines. The contributions are: an open-source, reproducible PPM
-pipeline with time-series support; an empirical comparison of log-only vs.
-log+time-series models on both tasks; and an analysis of when time-series
+pipeline with time-series support, an empirical comparison of log-only vs.
+log+time-series models on both tasks, and an analysis of when time-series
 features help and when they do not.
 
 The paper is organised as follows. \autoref{sec:data} describes the dataset and
@@ -98,10 +98,10 @@ evidence. \autoref{sec:evaluation} discusses findings and limitations.
 \label{sec:bpic2017}
 
 The BPI Challenge 2017 event log~\cite{bpic2017} records a loan application
-process at a Dutch financial institution. \autoref{tab:data-stats} summarises
-the dataset. The two prediction targets are binary outcome classification
-(each case ends as \emph{approved} or \emph{not-approved}) and remaining-time
-regression (the time in hours from the last observed event to case completion).
+process at a Dutch financial institution.
+Cases describe the lifecycle of credit applications, including application processing, offer creation, document validation, and final outcomes. Events belong to three categories: application state changes, offer state changes, and workflow activities performed by employees. Each case ultimately ends in either approval (\texttt{A\_Pending}) or a non-approved outcome (\texttt{A\_Cancelled} or \texttt{A\_Denied}). \cite{povalyaeva2017bpic}
+
+The dataset is widely used in predictive process monitoring because it contains rich control-flow, temporal, and financial information, as well as substantial variation in case duration and outcome. \autoref{tab:data-stats} summarises the dataset.
 
 \begin{table}[H]
     \centering
@@ -109,15 +109,15 @@ regression (the time in hours from the last observed event to case completion).
     \label{tab:data-stats}
     \begin{tabularx}{0.6\textwidth}{lX}
         \toprule
-        Statistic & Value \\
+        Statistic                   & Value      \\
         \midrule
-        Cases & 31,509 \\
-        Events & 1,202,267 \\
-        Activities & 26 \\
-        Start date & 2016-01-01 \\
-        End date & 2017-02-01 \\
-        Mean case length (events) & 38.16 \\
-        Median case length (events) & 35 \\
+        Cases                       & 31,509     \\
+        Events                      & 1,202,267  \\
+        Activities                  & 26         \\
+        Start date                  & 2016-01-01 \\
+        End date                    & 2017-02-01 \\
+        Mean case length (events)   & 38.16      \\
+        Median case length (events) & 35         \\
         \bottomrule
     \end{tabularx}
 \end{table}
@@ -125,22 +125,41 @@ regression (the time in hours from the last observed event to case completion).
 \subsection{Preprocessing Pipeline}
 \label{sec:preprocessing}
 
-Raw XES data is ingested, cleaned, and sorted by timestamp. A sliding-window
-approach generates prefixes: every prefix of length~$k$ contains the first~$k$
-events of a case and inherits the case's final label. \autoref{tab:preprocessing-config}
-lists the preprocessing configuration parameters.
+Raw XES event logs are first ingested, cleaned, and sorted in ascending order by timestamp. A sliding-window approach is then applied to generate training instances. For each case, a window of length $k$ at time step $t$ consists of the most recent $k$ events ending at position $t$, where $k$ is constrained by a minimum and maximum window length. Each resulting window is associated with the corresponding case label. Table~\ref{tab:preprocessing-summary} summarises the final dataset sizes for each prediction task, together with the applied filtering steps and sliding-window configuration.
+
+The preprocessing pipeline differs between the regression and classification tasks. For the regression task, no additional filtering is applied. Sliding windows are generated with a minimum length of 3 and a maximum length of 100 events per case, resulting in truncated event histories that capture recent temporal context.
+
+For the classification task, additional constraints are introduced to ensure label consistency and prevent information leakage. First, cases that do not contain any of the defined outcome events are removed (98 out of 31,509 cases). Second, windows that include an outcome event are excluded, as their inclusion would leak information about the final case outcome into the input representation. The same minimum and maximum window lengths (3 to 100 events) are used as in the regression setup.
 
 \begin{table}[H]
     \centering
-    \caption{Preprocessing configuration.}
-    \label{tab:preprocessing-config}
-    \begin{tabularx}{0.6\textwidth}{lX}
+    \caption{Preprocessing summary per task.}
+    \label{tab:preprocessing-summary}
+    \begin{tabularx}{\textwidth}{lX}
         \toprule
-        Parameter & Value \\
+        Component                 & Value       \\
         \midrule
-        Min. prefix length & 1 \\
-        Max. prefix length & None (full trace) \\
-        Min. case length & 2 events \\
+
+        Initial dataset           &
+        31,509 cases / 1,202,267 events         \\
+
+        Window type               &
+        Sliding history window (end at $t$)     \\
+
+        Window length             &
+        min = 3, max = 100                      \\
+
+        Regression filtering      &
+        None (all cases retained)               \\
+
+        Classification filtering  &
+        No-outcome cases removed (98 excluded), \\ & outcome windows removed \\
+
+        Regression final size     &
+        31,509 cases                            \\
+
+        Classification final size &
+        31,411 cases                            \\
 
         \bottomrule
     \end{tabularx}
@@ -151,23 +170,22 @@ lists the preprocessing configuration parameters.
 
 We use a temporal split by case start time to prevent leakage: all prefixes
 from the same case remain in the same split. Cases starting before the 0.8
-quantile go to training; later cases go to testing. This simulates an
+quantile go to training. Later cases go to testing. This simulates an
 operational setting where the model predicts on cases that start after the
 training period. \autoref{tab:split-stats} shows the resulting split
 statistics.
 
-% TODO: replace with actual counts from pipeline run
 \begin{table}[H]
     \centering
     \caption{Temporal split statistics.}
     \label{tab:split-stats}
     \begin{tabularx}{0.6\textwidth}{lXX}
         \toprule
-        & Train & Test \\
+                   & Train      & Test       \\
         \midrule
-        Cases & [placeholder] & [placeholder] \\
-        Prefixes & [placeholder] & [placeholder] \\
-        Split date & 2016-[placeholder] & 2016-[placeholder] \\
+        Cases      & 22,859     & 6,283      \\
+        Prefixes   & 763,417    & 210,096    \\
+        Split date & 2016-01-01 & 2016-10-18 \\
         \bottomrule
     \end{tabularx}
 \end{table}
@@ -190,14 +208,14 @@ features are computed in vectorised form for efficiency.
     \label{tab:log-features}
     \begin{tabularx}{\textwidth}{lXr}
         \toprule
-        Group & Features & Count \\
+        Group           & Features                            & Count \\
         \midrule
-        Activity counts & Count per event type per prefix & 26 \\
-        Temporal & Elapsed time, time since last event & 2 \\
-        Financial & Monthly cost, number of terms & 2 \\
-        Waiting states & Time in waiting activities & 4 \\
+        Activity counts & Count per event type per prefix     & 26    \\
+        Temporal        & Elapsed time, time since last event & 2     \\
+        Financial       & Monthly cost, number of terms       & 2     \\
+        Waiting states  & Time in waiting activities          & 4     \\
         \midrule
-        Total & & 34 \\
+        Total           &                                     & 34    \\
         \bottomrule
     \end{tabularx}
 \end{table}
@@ -217,13 +235,13 @@ trend (\texttt{trend\_8h} = current value minus value 8 hours earlier).
     \label{tab:ts-features}
     \begin{tabularx}{\textwidth}{lXrr}
         \toprule
-        Class & Base signal & Base cols & Total \\
+        Class           & Base signal                                & Base cols & Total \\
         \midrule
-        ActiveCaseCount & Cases active at prefix timestamp & 1 & 3 \\
-        FinancialVolume & Hourly sum/mean of withdrawal, offer, cost & 6 & 18 \\
-        DecisionRate & Ratio of accepted decisions per hour & 1 & 3 \\
+        ActiveCaseCount & Cases active at prefix timestamp           & 1         & 3     \\
+        FinancialVolume & Hourly sum/mean of withdrawal, offer, cost & 6         & 18    \\
+        DecisionRate    & Ratio of accepted decisions per hour       & 1         & 3     \\
         \midrule
-        Total & & 8 & 24 \\
+        Total           &                                            & 8         & 24    \\
         \bottomrule
     \end{tabularx}
 \end{table}
@@ -246,20 +264,20 @@ to each prefix at extraction time via vectorised timestamp lookup.
 \label{sec:tasks}
 
 The project addresses two tasks: binary outcome classification (predict whether
-a case ends as approved or not-approved, evaluated with F1-weighted, AUC-ROC,
-and AUC-PRC) and remaining-time regression (predict hours until case
-completion, evaluated with MAE and RMSE).
+a case ends as approved or not-approved) and remaining-time regression (predict
+hours until case completion). Evaluation metrics are described in \autoref{sec:metrics}.
 
 \subsection{Models and Hyperparameter Optimisation}
 \label{sec:model-list}
 
-We compared four model families and selected Random Forest as the best
-performer for both tasks. \autoref{tab:models} lists the candidates and their
-hyperparameter search spaces. Random Forest was chosen because it achieved the
-lowest RMSE for regression and the highest F1-weighted for classification, and
-because it handles non-linear relationships and does not require feature
-scaling. All classification models use
-\texttt{class\_weight="balanced"} to address class imbalance.
+Four model families were compared for each task (\autoref{tab:models}). The
+best model differs by task: HistGradientBoosting (HGB) achieved the highest
+F1-weighted for
+classification (0.6601), while Random Forest (RF) achieved the lowest RMSE for
+regression (228.97). Both are tree-based ensemble methods that handle
+non-linear relationships and do not require feature scaling. All
+classification models use \texttt{class\_weight="balanced"} to address class
+imbalance.
 
 \begin{table}[H]
     \centering
@@ -267,34 +285,60 @@ scaling. All classification models use
     \label{tab:models}
     \begin{tabularx}{\textwidth}{llX}
         \toprule
-        Model & Task & Key hyperparameters \\
+        Model                & Task           & Key hyperparameters       \\
         \midrule
-        Random Forest & Both &
-            \texttt{n\_estimators}: 100--300\newline
-            \texttt{max\_depth}: 5--20\newline
-            \texttt{min\_samples\_split}: 2--20 \\
-        Logistic Regression & Classification & \texttt{C}: 0.01--100 \\
-        Ridge Regression & Regression & \texttt{alpha}: 0.01--100 \\
-        HistGradientBoosting & Both &
-            \texttt{learning\_rate}: 0.01--0.3\newline
-            \texttt{max\_iter}: 100--300 \\
+        Random Forest        & Both           &
+        \texttt{n\_estimators}: 100--300\newline
+        \texttt{max\_depth}: 5--20\newline
+        \texttt{min\_samples\_split}: 2--20                               \\
+        Logistic Regression  & Classification & \texttt{C}: 0.01--100     \\
+        Ridge Regression     & Regression     & \texttt{alpha}: 0.01--100 \\
+        HistGradientBoosting & Both           &
+        \texttt{learning\_rate}: 0.01--0.3\newline
+        \texttt{max\_iter}: 100--300                                      \\
         \bottomrule
     \end{tabularx}
 \end{table}
 
 Hyperparameters are optimised via \texttt{RandomizedSearchCV} with 5-fold
 cross-validation using a sampled subset of training prefixes
-(\texttt{search\_sample\_size}) for faster iteration. \autoref{tab:hpo-config}
-lists the search configuration. For prefix selection, \emph{plateau detection}
-identifies the shortest prefix length where additional events yield less than
-5\% improvement in the primary metric, marking the point at which the model
-has enough information for reliable predictions.
+(\texttt{search\_sample\_size}=50\,000) for faster iteration.
+\autoref{tab:hpo-config} lists the search configuration.
+
+\begin{table}[H]
+    \centering
+    \caption{Hyperparameter optimisation configuration.}
+    \label{tab:hpo-config}
+    \begin{tabularx}{0.7\textwidth}{lX}
+        \toprule
+        Parameter          & Value                                            \\
+        \midrule
+        Search method      & RandomizedSearchCV                               \\
+        CV folds           & 3 (5 on dev)                                     \\
+        Search iterations  & 10 (20 on dev)                                   \\
+        Search sample size & 50\,000 prefixes                                 \\
+        Scoring            & F1-weighted (classification) / RMSE (regression) \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
 
 \subsection{Evaluation Protocol and Comparison Design}
 \label{sec:metrics}
 
-Classification metrics are AUC-PRC, AUC-ROC, F1-weighted, precision, and
-recall. Regression metrics are MAE (hours), RMSE (hours), and $R^2$. Every
+We select three metrics for classification. \textbf{F1-weighted} balances
+precision and recall while accounting for class support, making it robust to
+the 67:33 class imbalance. It is the primary ranking metric used by the
+pipeline. \textbf{ROC AUC} provides a threshold-independent measure of
+discrimination and is the most commonly reported metric in PPM literature.
+\textbf{MCC} (Matthews Correlation Coefficient) aggregates all four confusion
+matrix entries into a single score (range $-1$ to $+1$, where 0 = random) and
+acts as a balanced tiebreaker when F1 and ROC AUC disagree.
+
+For regression we select \textbf{RMSE} in hours (same unit as the target,
+penalises large errors, primary ranking metric) and \textbf{$R^2$}
+(proportion of variance explained, normalised against the mean baseline).
+
+Every
 model configuration is trained twice: once with log-only features and once
 with log-based and time-series features combined. Both configurations share
 the same train/test split, hyperparameter search space, and evaluation
@@ -308,148 +352,264 @@ both evaluation reports and produces paired metric tables and faceted plots.
 \subsection{Outcome Prediction}
 \label{sec:results-outcome}
 
+HistGradientBoosting (HGB) outperforms all alternatives for outcome
+classification, achieving the highest scores across all three primary
+metrics (\autoref{tab:classification-results}). HGB leads Random Forest
+by 2.1\% in F1-weighted (0.6601 vs.\ 0.6465), by 0.006 in ROC AUC, and
+by 0.019 in MCC.
+
 \begin{table}[H]
     \centering
-    \caption{Classification results at plateau prefix length.}
+    \caption{Classification model comparison (log+TS, 58 features, full data).}
     \label{tab:classification-results}
-    \begin{tabularx}{\textwidth}{lXXX}
+    \begin{tabularx}{0.85\textwidth}{lccc}
         \toprule
-        Model & F1-weighted & AUC-ROC & AUC-PRC \\
+        Model                 & F1-weighted     & ROC AUC         & MCC             \\
         \midrule
-        Dummy (majority class) & 0.5401 & 0.5000 & 0.5000 \\
-        RF log-only (A+W) & 0.6541 & 0.7120 & 0.6722 \\
-        RF log+TS (A+W+C+V) & 0.6730 & 0.7004 & 0.6595 \\
+        HistGradientBoosting  & \textbf{0.6601} & \textbf{0.6580} & \textbf{0.2316} \\
+        Random Forest         & 0.6465          & 0.6522          & 0.2128          \\
+        Logistic Regression   & 0.6297          & 0.6270          & 0.1827          \\
+        Dummy (most frequent) & 0.5401          & 0.5000          & 0.0000          \\
         \bottomrule
     \end{tabularx}
 \end{table}
 
-Time-series features did not improve classification performance on the
-full dataset. While F1-weighted rose from 0.6541 to 0.6730 ($+$2.9\%),
-ROC AUC fell from 0.7120 to 0.7004 ($-$1.6\%), indicating that the
-threshold-based gain comes at the cost of worse discrimination. The
-log-only A+W model is therefore the recommended configuration.
-% TODO: insert metric_vs_prefix.png
-% TODO: insert roc_pr_curves.png
+\autoref{fig:classification-prefix} shows F1-weighted across prefix lengths.
+Performance improves consistently with more events: HGB rises from 0.5051 at
+prefix~3 to 0.7731 at prefix~34. The improvement rate diminishes after the
+first 10--15 events, but longer prefixes continue to add signal.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figures/f1_weighted_vs_prefix.png}
+    \caption{F1-weighted by prefix length (classification).}
+    \label{fig:classification-prefix}
+\end{figure}
+
+\paragraph{Time-Series Impact}
+Adding time-series features to HGB changes nothing. With 34 log-only
+features, HGB scores 0.6584 F1-weighted and 0.6597 ROC AUC. With 58
+log+TS features, it scores 0.6594 and 0.6557 (\autoref{tab:classification-ts}).
+The differences (+0.001 in F1-weighted and $-$0.004 in ROC AUC) are
+negligible.
+
+\begin{table}[H]
+    \centering
+    \caption{Classification TS impact (HGB, full data).}
+    \label{tab:classification-ts}
+    \begin{tabularx}{0.85\textwidth}{lccc}
+        \toprule
+        Configuration     & Features & F1-weighted & ROC AUC \\
+        \midrule
+        HGB log-only (34) & 34       & 0.6584      & 0.6597  \\
+        HGB log+TS (58)   & 58       & 0.6594      & 0.6557  \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\paragraph{Feature Importance}
+\autoref{tab:classification-feature-importance} lists the top 10
+features for HGB log-only. A single feature dominates:
+\texttt{count\_W\_Validate application} (importance 0.0636) is three
+times the second-ranked feature and accounts for the majority of
+predictive signal.
+
+\begin{table}[H]
+    \centering
+    \caption{Top 10 features by permutation importance (HGB log-only).}
+    \label{tab:classification-feature-importance}
+    \begin{tabularx}{0.85\textwidth}{lr}
+        \toprule
+        Feature                         & Importance \\
+        \midrule
+        count\_W\_Validate application  & 0.0636     \\
+        count\_W\_Handle leads          & 0.0209     \\
+        monthly\_cost                   & 0.0123     \\
+        num\_terms                      & 0.0097     \\
+        elapsed\_time\_hours            & 0.0074     \\
+        count\_A\_Validating            & 0.0061     \\
+        count\_O\_Returned              & 0.0060     \\
+        count\_W\_Call after offers     & 0.0057     \\
+        count\_W\_Call incomplete files & 0.0043     \\
+        time\_since\_last\_event\_hours & 0.0023     \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\autoref{fig:classification-feature-importance} visualises the
+importance distribution: activity-count features occupy 6 of the top
+10 positions, while financial and temporal features appear at middle ranks
+with substantially lower importance and waiting-state features do not
+appear in the top 10 at all.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figures/hist_gradient_boosting_feature_importance.png}
+    \caption{Permutation feature importance (HGB log-only).}
+    \label{fig:classification-feature-importance}
+\end{figure}
+
+\autoref{fig:shap-classification} shows the SHAP summary dot plot for
+the same model, revealing the direction of each feature's effect. High
+occurrences of \texttt{count\_W\_Validate application} (the dominant
+predictor) push predictions toward the approved class. Conversely,
+higher \texttt{elapsed\_time\_hours} and \texttt{time\_since\_last\_event\_hours}
+push toward not-approved, suggesting that longer-running cases are more
+likely to end negatively.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figures/shap_hgb_dot.png}
+    \caption{SHAP summary dot plot (HGB classification). Each dot represents a
+        single prediction. Colour indicates feature value (red = high,
+        blue = low). Features are ordered by global importance.}
+    \label{fig:shap-classification}
+\end{figure}
 
 \subsection{Remaining-Time Prediction}
 \label{sec:results-time}
 
-% TODO: replace with actual values from pipeline run
+Random Forest (RF) achieves the lowest RMSE for remaining-time regression,
+marginally ahead of HGB and well below the dummy baseline
+(\autoref{tab:regression-results}). The $R^2$ of 0.382 indicates that
+RF explains 38\% of the variance in remaining time.
+
 \begin{table}[H]
     \centering
-    \caption{Regression results at plateau prefix length.}
+    \caption{Regression model comparison (log+TS, max\_length=100, full data).}
     \label{tab:regression-results}
-    \begin{tabularx}{0.7\textwidth}{lXX}
+    \begin{tabularx}{0.75\textwidth}{lrr}
         \toprule
-        Model & MAE (hours) & RMSE (hours) \\
+        Model                & RMSE (hours)    & $R^2$ \\
         \midrule
-        Dummy (mean) & [placeholder] & [placeholder] \\
-        RF log-only & [placeholder] & [placeholder] \\
-        RF log+TS & [placeholder] & [placeholder] \\
+        Random Forest        & \textbf{230.28} & 0.382 \\
+        HistGradientBoosting & 231.15          & ---   \\
+        Ridge                & 237.33          & ---   \\
+        Dummy (mean)         & 295.97          & 0.000 \\
         \bottomrule
     \end{tabularx}
 \end{table}
 
-Time-series features degraded regression performance across all prefix
-lengths. The log-only Random Forest produced lower MAE and RMSE than the
-log+TS variant. We analyse possible reasons in
-\autoref{sec:discussion-value}.
-% TODO: insert regression_metric_vs_prefix.png
+\autoref{fig:regression-prefix} shows RMSE across prefix lengths. RMSE
+improves from 284.83 at prefix~3 to 233.14 at prefix~100, with most of the
+gain achieved by prefix~20. Beyond that, returns diminish but do not
+fully plateau.
 
-\subsection{Ablation Study}
-\label{sec:feature-importance}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figures/rmse_vs_prefix.png}
+    \caption{RMSE by prefix length (RF log-only regression).}
+    \label{fig:regression-prefix}
+\end{figure}
 
-We conducted an ablation study to measure the standalone and combined
-predictive power of each log-based feature group. Groups are denoted A
-(activity counts, 26 features), T (temporal, 2), F (financial, 2), and W
-(waiting states, 4). \autoref{tab:ablation} shows ROC AUC, balanced
-accuracy, and F1-weighted scores for all 16 combinations on the full
-dataset.
+\paragraph{Time-Series Impact}
+Time-series features degrade regression performance. The log-only RF
+(228.97 RMSE) beats every log+TS variant by 1.31--1.45 RMSE
+(\autoref{tab:regression-ts}), a 0.6\% penalty. The degradation is consistent across all
+prefix lengths.
 
 \begin{table}[H]
     \centering
-    \caption{Ablation: all combinations of log-based feature groups
-             (full data, RF, ROC AUC).}
-    \label{tab:ablation}
-    \begin{tabularx}{0.80\textwidth}{lrrrr}
+    \caption{Regression TS impact (RF, max\_length=100, full data).}
+    \label{tab:regression-ts}
+    \begin{tabularx}{0.75\textwidth}{lrr}
         \toprule
-        Groups & Features & ROC AUC & Balanced Acc. & f1\_weighted \\
+        Configuration       & Features & RMSE (hours)    \\
         \midrule
-        Dummy   & 0  & 0.5000 & 0.5000 & 0.5401 \\
-        F       & 2  & 0.5900 & 0.5866 & 0.6116 \\
-        W       & 4  & 0.6076 & 0.5977 & 0.5181 \\
-        T+F     & 4  & 0.6299 & 0.5912 & 0.6376 \\
-        T       & 2  & 0.6406 & 0.6152 & 0.6321 \\
-        F+W     & 6  & 0.6505 & 0.6166 & 0.6319 \\
-        T+W     & 8  & 0.6574 & 0.6283 & 0.6369 \\
-        T+F+W   & 8  & 0.6677 & 0.6137 & 0.6533 \\
-        A+F     & 28 & 0.6903 & 0.6409 & 0.6661 \\
-        A+T     & 28 & 0.6938 & 0.6435 & 0.6606 \\
-        A+F+W   & 32 & 0.6953 & 0.6433 & 0.6687 \\
-        A+T+W   & 30 & 0.6960 & 0.6455 & 0.6624 \\
-        A+T+F   & 30 & 0.7005 & 0.6378 & 0.6726 \\
-        A+T+F+W & 34 & 0.7036 & 0.6417 & \textbf{0.6748} \\
-        A       & 26 & 0.7095 & 0.6654 & 0.6522 \\
-        A+W     & 30 & \textbf{0.7120} & \textbf{0.6664} & 0.6541 \\
+        RF log-only (34)    & 34       & \textbf{228.97} \\
+        RF log+TS (58)      & 58       & 230.42          \\
+        RF log+TS (compare) & 58       & 230.28          \\
         \bottomrule
     \end{tabularx}
 \end{table}
 
-The best combination by ROC AUC is A+W (0.7120), slightly above activity
-counts alone (0.7095). Waiting states add marginal discriminative value
-when combined with activity counts. The full all-log combination
-(A+T+F+W) achieves the highest F1-weighted (0.6748) but at the cost of
-lower ROC AUC (0.7036).
+\paragraph{Full-Length vs.\ Maximum-Length Prefixes}
+Capped (\texttt{max\_length=100}) and unbounded (full trace) prefix
+configurations produce nearly identical results: 230.28 vs.\ 230.20 RMSE.
+A difference of 0.04\% indicates that longer histories do not help.
 
-Temporal features do not consistently degrade performance on full data:
-some A+T combinations beat A alone on F1-weighted, but none improve ROC
-AUC, confirming that elapsed-time information does not add discriminative
-signal beyond activity counts.
-
-We conducted a second ablation to measure the marginal contribution of
-each time-series feature group on top of the best log-only configuration
-(A+W). Groups are denoted C (active case count, 3 features), V (financial
-volume, 18 features), and D (decision rate, 3 features).
-\autoref{tab:ablation-ts} reports results for all eight combinations on
-the full dataset.
+\paragraph{Feature Importance}
+\autoref{tab:regression-feature-importance} lists the top 10 features
+for RF log-only. \texttt{count\_W\_Validate application} dominates here
+as well (0.0618), with \texttt{count\_W\_Call after offers} (0.0323) and
+\texttt{count\_A\_Cancelled} (0.0299) distantly behind, with activity counts filling 7 of 10 positions and
+temporal features carrying moderate importance.
 
 \begin{table}[H]
     \centering
-    \caption{Time-series ablation on top of A+W log base
-             (full data, RF, ROC AUC).}
-    \label{tab:ablation-ts}
-    \begin{tabularx}{0.80\textwidth}{lrrrr}
+    \caption{Top 10 features by permutation importance (RF log-only).}
+    \label{tab:regression-feature-importance}
+    \begin{tabularx}{0.85\textwidth}{lr}
         \toprule
-        Groups & Features & ROC AUC & Balanced Acc. & f1\_weighted \\
+        Feature                         & Importance \\
         \midrule
-        A+W + D             & 33 & 0.6879 & 0.6318 & 0.6655 \\
-        A+W + C             & 33 & 0.6940 & 0.6387 & 0.6677 \\
-        A+W + V             & 48 & 0.6985 & 0.6296 & 0.6725 \\
-        A+W + V + D         & 51 & 0.6991 & 0.6269 & 0.6716 \\
-        A+W + C + V + D     & 54 & 0.7001 & 0.6275 & 0.6729 \\
-        A+W + C + D         & 36 & 0.7003 & 0.6387 & 0.6745 \\
-        A+W + C + V         & 51 & 0.7004 & 0.6289 & 0.6730 \\
-        \textbf{A+W (baseline)} & \textbf{30} & \textbf{0.7111} & \textbf{0.6659} & 0.6532 \\
+        count\_W\_Validate application  & 0.0618     \\
+        count\_W\_Call after offers     & 0.0323     \\
+        count\_A\_Cancelled             & 0.0299     \\
+        count\_A\_Validating            & 0.0132     \\
+        elapsed\_time\_hours            & 0.0131     \\
+        count\_O\_Returned              & 0.0127     \\
+        count\_A\_Complete              & 0.0111     \\
+        time\_since\_last\_event\_hours & 0.0096     \\
+        count\_O\_Accepted              & 0.0068     \\
+        num\_terms                      & 0.0048     \\
         \bottomrule
     \end{tabularx}
 \end{table}
 
-The best combination on all metrics is the A+W baseline: every
-time-series combination degrades ROC AUC and balanced accuracy. The
-smallest loss comes from A+W + C + V (ROC AUC 0.7004, $-$0.0107 vs.\
-baseline), while the best F1-weighted gain comes from A+W + C + D
-(0.6745, $+$0.0213 vs.\ baseline). This trade-off (a small
-threshold-based improvement at the cost of discrimination) does not
-justify the additional feature engineering and model complexity. We therefore select the log-only A+W
-model for the main comparison.
+\subsection{Overfitting Analysis}
+\label{sec:overfitting}
 
-Permutation feature importance on the A+W model confirms that
-activity-count features dominate the top predictors across both
-datasets. No time-series feature ranks among the top 20 predictors
-in any configuration, and adding TS features does not
-alter the ranking of the log-based features. This is
-consistent with the ablation results: the log-based signal already
-captures the information that TS features attempt to provide.
+\autoref{tab:overfitting} reports train-test gaps for the best models.
+\autoref{fig:train-vs-test} visualises the comparison.
+
+\begin{table}[H]
+    \centering
+    \caption{Train-test performance gap.}
+    \label{tab:overfitting}
+    \begin{tabularx}{\textwidth}{llrr}
+        \toprule
+        Task           & Model              & Train  & Test (gap)         \\
+        \midrule
+        Classification & HGB (f1-weighted)  & 0.6971 & 0.6609 ($-$0.0362) \\
+        Classification & RF (f1-weighted)   & 0.6810 & 0.6510 ($-$0.0300) \\
+        Regression     & RF log-only (RMSE) & 248.08 & 233.14 ($-$14.94)  \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\textwidth]{figures/train_vs_test.png}
+    \caption{Train vs.\ test performance (all models).}
+    \label{fig:train-vs-test}
+\end{figure}
+
+Overfitting is moderate: the train-test gap for HGB is $-$0.036
+F1-weighted, while for RF regression the gap is $-$14.94 RMSE (6\% of the
+test RMSE), both within expected bounds for tree-based ensemble models
+without explicit regularisation.
+
+\subsection{Summary of Findings}
+\label{sec:results-summary}
+
+\begin{itemize}
+    \item \textbf{HGB is best for classification} (0.6601 F1-weighted),
+          outperforming RF by 2.1\%.
+    \item \textbf{RF is best for regression} (228.97 RMSE log-only),
+          marginally ahead of HGB.
+    \item \textbf{Time-series features add no value for classification}
+          (+0.1\% F1-weighted) and \textbf{harm regression}
+          (+1.45 RMSE).
+    \item \textbf{Unbounded prefixes yield no improvement} over
+          \texttt{max\_length=100} ($-$0.04\% RMSE).
+    \item \textbf{\texttt{count\_W\_Validate application}} is the
+          single most predictive feature across both tasks
+          (importance 0.0636 classification, 0.0618 regression).
+    \item Performance improves with longer prefixes, but the
+          improvement rate diminishes after 10--15 events.
+    \item Overfitting gaps are moderate (HGB $-$0.036, RF $-$14.94 RMSE).
+\end{itemize}
 
 % =============================================================================
 \section{Testing Evidence}
@@ -479,17 +639,16 @@ poetry run pytest -m "not integration"
 \subsection{Do Time-Series Features Improve Predictive Performance?}
 \label{sec:discussion-value}
 
-For classification, time-series features raised F1-weighted by 2.2\% overall
-and by 30\% at length~3,
-suggesting that workload information helps most when little
-case-specific history is available. For regression, time-series features
-consistently degraded performance across all prefix lengths.
+For classification, time-series features added no meaningful improvement
+(F1-weighted +0.1\%). For regression, time-series features consistently
+degraded performance (RMSE +1.45), with the log-only model outperforming
+all log+TS variants across all metric dimensions.
 
 Three factors explain the limited impact. First, the \textbf{proxy effect}:
 log-based features (activity counts, elapsed time) already contain indirect
-workload information -- a high count of \texttt{W\_Validate application}
+workload information: a high count of \texttt{W\_Validate application}
 events correlates with periods of high load. Second, \textbf{coarse
-resampling}: the hourly active-case count loses sub-hour workload variation,
+    resampling}: the hourly active-case count loses sub-hour workload variation,
 and finer-grained features such as per-resource load might capture more
 signal. Third, \textbf{noise for regression}: the remaining-time target is
 inherently noisy, and adding time-series features introduces variance that
@@ -501,9 +660,10 @@ harms the already challenging regression task.
 Several limitations affect the interpretation of these results. The evaluation
 is based on a single dataset (BPIC 2017), and logs with different temporal
 patterns may yield different conclusions. Only one time-series feature family
-(active-case count with rolling statistics) was evaluated; other features such
+(active-case count with rolling statistics) was evaluated. Other features such
 as activity queue length, resource utilisation, and event throughput remain
-unexplored. The pipeline uses Random Forest only, and deep learning models
+unexplored. The pipeline evaluates Random Forest and HistGradientBoosting
+as tree-based baselines, and deep learning models
 (LSTMs, transformers) may integrate time-series information differently. The
 temporal split is deterministic, and time-series cross-validation could
 provide a more rigorous evaluation.
@@ -525,12 +685,14 @@ and configuration, ensuring reliability (reliability validity).
 
 This project investigated whether aligned time-series workload features
 improve predictive process monitoring. On the BPI Challenge 2017 dataset,
-time-series features raised classification F1-weighted by 2.2\% but
-degraded remaining-time regression. The benefit for
-classification is concentrated at early prefix lengths, where the model has
-little case-specific information. These results suggest that log-based
-features already capture workload variation indirectly, and time-series
-features add little beyond this proxy signal.
+time-series features added no meaningful improvement for classification
+(F1-weighted +0.1\%) and degraded remaining-time regression (RMSE +1.45).
+These results suggest that log-based features may capture workload
+variation indirectly: the dominance of \texttt{count\_W\_Validate application}
+across both tasks is consistent with a proxy effect, where activity counts
+of gate events correlate with concurrent process load. In this setting,
+time-series features added negligible signal beyond what the log already
+provides.
 
 \subsection*{Data and Code Availability}
 
@@ -541,57 +703,175 @@ experiments:
 
 \begin{verbatim}
 pip install -r requirements.txt
-python -m spi_time_series.main configs/classification.yaml --output-dir results/
-python -m spi_time_series.main configs/classification_dummy.yaml --output-dir results/
-python -m spi_time_series.main configs/regression.yaml --output-dir results/
+python -m spi_time_series.main experiments/classification/classification_compare.yaml --output-dir results/classification/classification_compare/
+python -m spi_time_series.main experiments/regression/regression_rf_log.yaml --output-dir results/regression/regression_rf_log/
 \end{verbatim}
 
 % =============================================================================
-\begin{thebibliography}{8}
+% \begin{thebibliography}{8}
 
-    \bibitem{bpic2017}
-    van Dongen, B.F.: BPI Challenge 2017. Eindhoven University of Technology
-    (2017). \url{https://research.tue.nl/en/datasets/bpi-challenge-2017}
+%     \bibitem{bpic2017}
+%     van Dongen, B.F.: BPI Challenge 2017. Eindhoven University of Technology
+%     (2017). \url{https://research.tue.nl/en/datasets/bpi-challenge-2017}
 
-    \bibitem{ppm-survey}
-    Di Francescomarino, C., Ghidini, C., Maggi, F.M., Milani, F.: Predictive
-    process monitoring methods: Which one suits you best? In: BPM, pp.
-    462--479 (2018)
+%     \bibitem{ppm-survey}
+%     Di Francescomarino, C., Ghidini, C., Maggi, F.M., Milani, F.: Predictive
+%     process monitoring methods: Which one suits you best? In: BPM, pp.
+%     462--479 (2018)
 
-    \bibitem{active-cases}
-    B\"anziger, T., Basin, D., Klaise, J., Srivatsa, S.: Active case
-    count feature for predictive process monitoring. In: ICPM, pp. 1--8
-    (2021)
+%     \bibitem{active-cases}
+%     B\"anziger, T., Basin, D., Klaise, J., Srivatsa, S.: Active case
+%     count feature for predictive process monitoring. In: ICPM, pp. 1--8
+%     (2021)
 
-    \bibitem{breiman-rf}
-    Breiman, L.: Random forests. Machine Learning 45(1), 5--32 (2001)
+%     \bibitem{breiman-rf}
+%     Breiman, L.: Random forests. Machine Learning 45(1), 5--32 (2001)
 
-    \bibitem{shap}
-    Lundberg, S.M., Lee, S.-I.: A unified approach to interpreting model
-    predictions. In: NeurIPS, pp. 4765--4774 (2017)
+%     \bibitem{shap}
+%     Lundberg, S.M., Lee, S.-I.: A unified approach to interpreting model
+%     predictions. In: NeurIPS, pp. 4765--4774 (2017)
 
-    \bibitem{logistic-regression}
-    Hosmer, D.W., Lemeshow, S., Sturdivant, R.X.: Applied Logistic
-    Regression, 3rd edn. Wiley (2013)
+%     \bibitem{logistic-regression}
+%     Hosmer, D.W., Lemeshow, S., Sturdivant, R.X.: Applied Logistic
+%     Regression, 3rd edn. Wiley (2013)
 
-\end{thebibliography}
+% \end{thebibliography}
+\bibliography{refs}
+\bibliographystyle{plain}
 \appendix
 
 \section{Appendix: Additional Results}
 \label{app:additional-results}
-% TODO: full metric tables for every model at every prefix length
+
+\subsection{Classification: Full Model Comparison}
+
+\begin{table}[H]
+    \centering
+    \caption{Classification: full metrics for all models (log+TS, 58 features).}
+    \label{tab:app-classification}
+    \begin{tabularx}{0.85\textwidth}{lccc}
+        \toprule
+        Model & F1-weighted     & ROC AUC         & MCC             \\
+        \midrule
+        HGB   & \textbf{0.6601} & \textbf{0.6580} & \textbf{0.2316} \\
+        RF    & 0.6465          & 0.6522          & 0.2128          \\
+        LR    & 0.6297          & 0.6270          & 0.1827          \\
+        Dummy & 0.5401          & 0.5000          & 0.0000          \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\subsection{Regression: Full Model Comparison}
+
+\begin{table}[H]
+    \centering
+    \caption{Regression: full metrics for all models (log+TS, max\_length=100).}
+    \label{tab:app-regression}
+    \begin{tabularx}{0.75\textwidth}{lrr}
+        \toprule
+        Model & RMSE            & $R^2$ \\
+        \midrule
+        RF    & \textbf{230.28} & 0.382 \\
+        HGB   & 231.15          & ---   \\
+        Ridge & 237.33          & ---   \\
+        Dummy & 295.97          & 0.000 \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\subsection{TS Impact Summary}
+
+\begin{table}[H]
+    \centering
+    \caption{TS impact summary across all configurations.}
+    \label{tab:app-ts-impact}
+    \begin{tabularx}{\textwidth}{llrrr}
+        \toprule
+        Task           & Model            & Features & F1 / RMSE       & ROC AUC / $R^2$ \\
+        \midrule
+        Classification & HGB log-only     & 34       & 0.6584          & 0.6597          \\
+        Classification & HGB log+TS       & 58       & 0.6594          & 0.6557          \\
+        \midrule
+        Regression     & RF log-only      & 34       & \textbf{228.97} & 0.388           \\
+        Regression     & RF log+TS        & 58       & 230.42          & 0.381           \\
+        Regression     & RF log+TS (full) & 58       & 230.20          & 0.382           \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\subsection{Overfitting Details}
+
+\begin{table}[H]
+    \centering
+    \caption{Train-test comparison for all models.}
+    \label{tab:app-overfitting}
+    \begin{tabularx}{\textwidth}{llrrr}
+        \toprule
+        Task           & Model & Metric      & Train  & Test   \\
+        \midrule
+        Classification & HGB   & F1-weighted & 0.6971 & 0.6609 \\
+        Classification & RF    & F1-weighted & 0.6810 & 0.6510 \\
+        Classification & LR    & F1-weighted & 0.6563 & 0.6388 \\
+        Classification & Dummy & F1-weighted & 0.5454 & 0.5401 \\
+        \midrule
+        Regression     & RF    & RMSE        & 248.08 & 233.14 \\
+        Regression     & HGB   & RMSE        & 238.74 & 234.88 \\
+        Regression     & Ridge & RMSE        & 256.93 & 240.87 \\
+        Regression     & Dummy & RMSE        & 295.97 & 295.97 \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
 
 \section{Appendix: Configuration Files}
 \label{app:configs}
-Experiments are defined in YAML configuration files under \texttt{configs/}.
-Key parameters: \texttt{data.split\_quantile=0.8},
-\texttt{search.n\_iter=20}, \texttt{search.cv\_folds=5},
+Experiments are defined in YAML configuration files under
+\texttt{experiments/\{task\}/}. Key parameters:
+\texttt{data.split\_quantile=0.8}, \texttt{prefix.min\_length=3},
+\texttt{search.cv\_folds=3},
 \texttt{features.enabled\_features} selects log-based and optionally
-time-series feature sets. See \texttt{configs/classification.yaml} and
-\texttt{configs/regression.yaml} for the complete configurations.
+time-series feature sets. See the \texttt{experiments/} directory for
+complete configurations for each experiment.
 
 \section{Appendix: Feature Descriptions}
 \label{app:features}
-% TODO: full list of all features with descriptions
+
+\subsection{Log-Based Features (34 features)}
+
+\begin{itemize}
+    \item \textbf{ActivityCountFeatures (26)}: One count per activity label
+          (e.g., \texttt{count\_W\_Validate application},
+          \texttt{count\_A\_Accepted}). Each feature records how many times
+          the event type occurred in the current prefix.
+    \item \textbf{TemporalFeatures (2)}:
+          \texttt{elapsed\_time\_hours} (hours since case start) and
+          \texttt{time\_since\_last\_event\_hours} (hours since the most
+          recent event).
+    \item \textbf{FinancialFeatures (2)}:
+          \texttt{monthly\_cost} and \texttt{num\_terms} from the loan
+          application's offer.
+    \item \textbf{WaitingStateFeatures (4)}:
+          \texttt{hours\_since\_offer\_sent},
+          \texttt{hours\_since\_incomplete},
+          \texttt{is\_waiting\_for\_customer},
+          \texttt{is\_waiting\_for\_bank}.
+\end{itemize}
+
+\subsection{Time-Series Features (24 features)}
+
+Each base signal produces three columns: raw value, 8-hour trailing
+mean (\texttt{window\_mean\_8h}), and 8-hour trend
+(\texttt{trend\_8h} = current value minus value 8 hours earlier).
+
+\begin{itemize}
+    \item \textbf{ActiveCaseCountFeature (1 base, 3 total)}:
+          Number of cases active at the prefix's timestamp in the hourly
+          active-case time series.
+    \item \textbf{FinancialVolumeFeature (6 base, 18 total)}:
+          Hourly aggregates: total and mean of withdrawal amount,
+          offer amount, and monthly cost.
+    \item \textbf{DecisionRateFeature (1 base, 3 total)}:
+          Ratio of accepted decisions (events \texttt{O\_Accepted})
+          per hour.
+\end{itemize}
 
 \end{document}
