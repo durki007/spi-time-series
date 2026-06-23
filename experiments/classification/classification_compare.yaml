@@ -1,0 +1,63 @@
+task: classification
+checkpoint_dir: ../data/checkpoints
+
+data:
+  top_k_variants: null
+  split_quantile: 0.8
+  outcome_class: 2class
+  # dev_mode: true
+
+prefix:
+  min_length: 3
+  max_length: 100
+
+features:
+  one_hot_encode_categorical: false
+  enabled_features:
+    - TemporalFeatures
+    - ActivityCountFeatures
+    - WaitingStateFeatures
+    - FinancialFeatures
+    - ActiveCaseCountFeature
+    - FinancialVolumeFeature
+    - DecisionRateFeature
+  exclude_features: []
+
+search:
+  n_iter: 10
+  cv_folds: 3
+  random_state: 42
+  search_sample_size: null
+
+pca_config:
+  active: False
+  keep_variability: 0.95
+
+models:
+  dummy:
+    model_type: DummyClassifier
+    params:
+      strategy: most_frequent
+
+  logistic_regression:
+    model_type: LogisticRegression
+    params:
+      C: 0.001
+      max_iter: 1000
+
+  random_forest:
+    model_type: RandomForestClassifier
+    params:
+      random_state: 42
+      n_estimators: 150
+      min_samples_split: 10
+      max_features: sqrt
+      max_depth: 10
+
+  hist_gradient_boosting:
+    model_type: HistGradientBoostingClassifier
+    params:
+      random_state: 42
+      max_iter: 200
+      max_depth: 5
+      learning_rate: 0.1

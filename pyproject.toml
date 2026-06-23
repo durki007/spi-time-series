@@ -1,13 +1,17 @@
 [project]
 name = "spi-time-series"
 version = "0.1.0"
-description = ""
+description = "This is a university project, aiming to investigate the impact of timeseries features in predictive process monitoring. We implement a predictive proces mining pipeline that can be configured to train and evaluate different models with log-based and timeseries features. It was build modular so new models, features and evaluations can be easily added to extend the pipelines functionality."
 authors = [
-    {name = "Your Name",email = "you@example.com"}
+    {name = "Durkalec, Michal",email = "michal.durkalec@rwth-aachen.de"},
+    {name = "Sakkas, Konstantinos",email = "konstantinos.sakkas@rwth-aachen.de"},
+    {name = "Lezovic, Roman",email = "roman.lezovic@rwth-aachen.de"},
+    
 ]
 readme = "README.md"
 requires-python = ">=3.12"
 packages = [{ include = "src" }]
+
 dependencies = [
     "pm4py (>=2.7.22.2,<3.0.0.0)",
     "pandas (>=2.0.0,<3.0.0)",
@@ -22,6 +26,12 @@ dependencies = [
     "matplotlib (>=3.10.8,<4.0.0)",
     "seaborn (>=0.13.2,<0.14.0)",
     "mlflow (>=3.11.1,<4.0.0)",
+    "r4pm (>=0.5.5,<0.6.0)",
+    "polars (>=1.40.1,<2.0.0)",
+    "ipykernel (>=7.2.0,<8.0.0)",
+    "notebook (>=7.0.0,<8.0.0)",
+    "pydantic (>=2.0.0,<3.0.0)",
+    "pyyaml (>=6.0,<7.0)",
 ]
 
 [tool.poetry.group.dev]
@@ -29,6 +39,7 @@ optional = true
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^4.5.1"
+ruff = "^0.15.11"
 
 [tool.poetry.group.test]
 optional = true
@@ -37,6 +48,11 @@ optional = true
 pytest = ">=9.0.3,<10.0.0"
 pytest-cov = ">=7.1.0,<8.0.0"
 
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: tests that make real network or filesystem calls (deselect with '-m not integration')",
+]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

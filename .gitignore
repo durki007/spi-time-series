@@ -21,23 +21,26 @@ ENV/
 *.ipynb_checkpoints
 
 # Data — commit only small samples; keep large files out of the repo
+output/
 data/raw/
 data/interim/
 data/processed/
+data/checkpoints/
 !data/raw/.gitkeep
 !data/interim/.gitkeep
 !data/processed/.gitkeep
 
-# Model artifacts
-results/models/
+# Model artifacts (generated formats not used by this pipeline)
 *.pkl
-*.joblib
 *.h5
 *.pt
 *.onnx
 
-# Figures (regeneratable)
-results/figures/
+# Pipeline outputs (regeneratable — everyone runs their own)
+results/
+*.joblib
+*.csv
+*.png
 
 # Environment / secrets
 .env
@@ -50,7 +53,8 @@ Thumbs.db
 desktop.ini
 
 # IDEs
-.vscode/
+.vscode/*
+!.vscode/extensions.json
 .idea/
 *.sublime-project
 *.sublime-workspace
@@ -64,3 +68,15 @@ coverage.xml
 # mypy / type checking
 .mypy_cache/
 .dmypy.json
+
+# ruff
+.ruff_cache/
+
+# claude settings
+.claude/
+
+# agent instructions
+AGENTS.md
+
+# results
+results

@@ -1,0 +1,203 @@
+\documentclass[runningheads]{llncs}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{color}
+\usepackage[colorlinks=true, linkcolor=black, citecolor=black, urlcolor=blue]{hyperref}
+\renewcommand\UrlFont{\color{blue}\rmfamily}
+\urlstyle{rm}
+\usepackage{soul}
+\begin{document}
+\title{MSc Project 1: Time-Series-Enhanced Predictive Process Monitoring}
+\subtitle{Phase Review 4}
+\titlerunning{Time-Series-Enhanced PPM: Phase Review 4}
+\author{Micha\l{} Durkalec \and
+    Konstantinos Sakkas \and
+    Roman Le\v{z}ovi\v{c}
+}
+\authorrunning{M. Durkalec et al.}
+\institute{Supervised Process Intelligence (SPI) Lab,\\
+    RWTH Aachen University, Aachen, Germany\\
+    \email{office@pads.rwth-aachen.de}}
+\maketitle
+\begin{abstract}
+    This document reviews the Testing and Assessment phase of the project. Building on the
+    infrastructure completed in Sprint~3, this phase ran the full experimental comparison
+    between log-only and time-series-enhanced models for both classification and regression
+    tasks on the complete BPI Challenge 2017 dataset, implemented explainability and
+    diagnostic tooling, and produced the empirical results that answer the project's
+    central research question. The phase concludes with all experimental findings
+    documented and the final report as the remaining deliverable.
+    \keywords{Predictive Process Monitoring \and Model Evaluation \and Feature Importance
+        \and Time-Series Features \and Overfitting Analysis}
+\end{abstract}
+
+\section{Introduction \& Objectives}
+
+\subsection{Phase Goals}
+The Testing and Assessment phase aimed to run the full experimental suite on the complete
+BPI Challenge 2017 dataset~\cite{bpic2017}, moving beyond the development subset used
+during earlier sprints. We compared log-only and time-series-enhanced models for both
+outcome classification and remaining-time regression under identical conditions,
+producing the head-to-head comparison deferred from Sprint~3. We also built diagnostic
+and explainability tooling: permutation feature importance, SHAP summary plots,
+overfitting analysis, confusion matrices, and predicted-versus-actual scatter plots to
+interpret the models and assess their reliability.
+
+\subsection{Team Organization}
+Work continued to be tracked through GitHub Issues. Michal drove most of the
+experimental pipeline: model comparisons for both classification and regression,
+confusion matrices, overfitting metrics, and feature importance data.
+Konstantinos built the SHAP explainability module, added binary outcome
+classification, refactored the evaluation metrics for the final report, and wrote the
+architecture documentation. Roman handled class-balanced training with
+cross-validation search, implemented the baseline models, and fixed the prefix generation
+logic for the classification task. All team members contributed to refining the empirical
+findings.
+
+\subsection{Role Allocation}
+Role assignments from Sprint~3 carried forward into this phase, with all team members
+contributing across tracks as needed.
+
+\begin{table}[H]
+    \caption{Role assignments for the Testing and Assessment phase.}\label{tab:roles}
+    \centering
+    \begin{tabular}{@{}ll@{}}
+        \toprule
+        \textbf{Role}                      & \textbf{Assigned To} \\
+        \midrule
+        Project Coordinator / Scrum Master & Roman                \\
+        Technical Lead / Architecture      & Konstantinos         \\
+        Data \& Preprocessing Lead         & Roman                \\
+        Modelling \& Experimentation Lead  & Michal               \\
+        Evaluation \& Visualization Lead   & Konstantinos         \\
+        Quality \& Tooling (Tests, CI)     & Roman                \\
+        Documentation \& Reporting         & Michal, Roman, Konstantinos (shared) \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Technical Implementation}
+
+This phase did not introduce new architecture. We ran the existing
+infrastructure from Sprints~1--3 at full scale on the complete BPI Challenge
+2017 dataset. \autoref{tab:steps} maps each work item
+to its issues and pull requests.
+
+\subsection{Full-Scale Experimental Runs}
+We ran all experiments through the parametric CLI entry point from Sprint~2.
+For classification we compared four models: Dummy, Logistic Regression, Random Forest,
+and HistGradientBoosting using the full 58-feature log+time-series set. For regression
+Ridge replaced Logistic Regression in the same four-model design. All
+configurations shared the 0.8-quantile temporal train/test split by case start time, prefix
+lengths from~3 to~100, and identical random seeds. Hyperparameter search used
+\texttt{RandomizedSearchCV} with 3-fold cross-validation and 10 iterations. HGB came out
+best for classification; Random Forest for regression.
+
+\subsection{Time-Series Impact Analysis}
+For the central comparison we ran the best model from each task under both configurations
+with all other settings held constant. Hourly-resampled time-series features with
+8-hour rolling windows did not improve classification and degraded regression
+performance compared to the log-only baseline. Unbounded prefixes and capped prefixes
+produced nearly identical results.
+
+\subsection{Diagnostic and Explainability Tooling}
+We ran several diagnostic analyses to interpret the models. Permutation feature
+importance ranked activity-count features at the top for both tasks. SHAP summary plots
+visualised how individual feature values push predictions toward specific outcomes.
+Overfitting looked moderate: train-test gaps stayed within expected bounds for tree-based
+ensembles. We also produced confusion matrices and predicted-versus-actual scatter plots
+for every model-task combination.
+
+\begin{table}[H]
+    \centering
+    \caption{Testing and Assessment implementation steps.}
+    \label{tab:steps}
+    \begin{tabularx}{\textwidth}{lXX}
+        \toprule
+        \textbf{Step} & \textbf{Description}                                   & \textbf{Issues / PRs} \\
+        \midrule
+        1             & Run experiments for both tasks                          & \#120                 \\
+        2             & Regression model comparison                             & \#119                 \\
+        3             & Classification model comparison with HGB                & (\#112--\#118)        \\
+        4             & Confusion matrices                                      & --                    \\
+        5             & Overfitting metrics                                     & --                    \\
+        6             & Feature importance to CSV                               & --                    \\
+        7             & Predicted-vs-actual scatter plots                       & --                    \\
+        8             & HGB as best classification model                        & --                    \\
+        9             & Full-prefix-length configuration                        & --                    \\
+        10            & Test suite maintenance and fixes                        & --                    \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\section{Review \& Retrospective}
+
+\subsection{Successes}
+All planned phase objectives were completed. The full experimental suite ran end-to-end
+on the complete BPI Challenge 2017 dataset, producing the head-to-head comparison
+deferred from Sprint~3. The diagnostic tooling ran without issues and its results fed
+into the interpretation. \autoref{tab:issues} lists the key issues and pull
+requests closed during the phase.
+
+\begin{table}[H]
+    \centering
+    \caption{Testing and Assessment issues and pull requests.}
+    \label{tab:issues}
+    \begin{tabularx}{0.85\textwidth}{lX}
+        \toprule
+        \textbf{Issue / PR} & \textbf{Description}                                            \\
+        \midrule
+        \#120               & Run experiments for both tasks                                  \\
+        \#119               & Compare regression models                                       \\
+        \#112--\#118        & Classification experiments with HGB                              \\
+        --                  & Comput confusion matrices                                       \\
+        --                  & Evaluate overfitting metrics                                    \\
+        --                  & Save feature importance to CSV                                  \\
+        --                  & Predicted vs actual scatter plots                               \\
+        --                  & HGB as best model for classification                            \\
+        --                  & Add config for full prefix len                                  \\
+        --                  & Fix tests (remove integration tests)                            \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\subsection{Difficulties}
+The main challenge was the negative result itself: the time-series features added no
+value for classification and degraded regression. Explaining this outcome required
+deeper diagnostic analysis than initially scoped. The key insight was concept drift:
+the time-series features are global process-state signals whose distributions shift
+between train and test on the chronological split, so they fail to generalise.
+
+\subsection{Task Tracking}
+We managed all work through GitHub Issues with linked pull requests. Smaller changes
+were merged directly to dev, while larger features followed the standard review
+process. The requirements tracking system kept detailed sub-requirements as GitHub
+issues linked to parent requirements instead of editing the requirements document,
+which worked well for scope changes like adding HGB as a model family.
+
+\section{Moving Forward}
+
+\subsection{Future Planning}
+With the Testing and Assessment phase complete, the remaining deliverable is the final
+report. We will produce the document covering data preprocessing, feature
+engineering, model specification, experimental protocol, and results. It will include a
+critical evaluation of the time-series features, limitations, and a project retrospective.
+All remaining open issues will be closed and the repository documentation finalised
+alongside.
+
+\subsection{Lessons Learned}
+The main lesson from this phase is that building extraction machinery is not the same as
+validating that the features carry useful signal. We put more effort into constructing the
+pipeline than into checking whether the extracted signals tracked real workload variation,
+and the null result reflects that imbalance. Claims about time-series features also need
+to be scoped to the specific extraction strategy rather than generalised. These are
+observations we carry forward into the final report.
+
+\begin{thebibliography}{8}
+    \bibitem{bpic2017}
+    van Dongen, B.F.: BPI Challenge 2017. Eindhoven University of Technology (2017). \url{https://research.tue.nl/en/datasets/bpi-challenge-2017}
+\end{thebibliography}
+\end{document}
