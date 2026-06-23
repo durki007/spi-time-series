@@ -52,6 +52,7 @@ from spi_time_series.evaluation.overfitting import (
     report_overfitting,
 )
 from spi_time_series.evaluation.plots import report_metric_plots
+from spi_time_series.evaluation.scatter_plot import report_predicted_vs_actual
 from spi_time_series.features.extraction import extract_features_builder
 from spi_time_series.features.log_based_features import (
     ActivityCountFeatures,
@@ -465,6 +466,9 @@ def main(argv: list[str] | None = None) -> None:
         .add_reporter(_make_model_comparison_reporter(config.task))
         .add_reporter(_save_predictions)
     )
+
+    if config.task == "regression":
+        builder = builder.add_reporter(report_predicted_vs_actual)
 
     if config.task == "classification":
         builder = builder.add_evaluator(evaluate_confusion_matrix).add_reporter(
